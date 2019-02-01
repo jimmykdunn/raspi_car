@@ -3,15 +3,21 @@
 # Code written for ME/SE 740 (Intellegent Machines) term project.
 
 # Control program for raspberry-pi driven RC car.  Program is intended to be
-# run constantly on the raspberry pi that sits aboard the car.
+# run constantly on the raspberry pi that sits aboard the car. This file contains
+# the functions for direct interaction with the autonomous vehicle via GPIO pins,
+# plus the main execution loop.  Specifics of control command calculation and
+# manual driving are relegated to imported files.
+
 # import matplotlib.pyplot as plt # plotting
 import numpy as np # basic math
 from time import sleep # sleep statements
 import RPi.GPIO as GPIO # general purpose output pin control library
 import atexit
 import pigpio
-import sys
-import select
+import picamera
+import picamera.array
+import user_control
+import seeker
 
 STEER_SCALE = 1.0 # Calibrates how much to slow motors when turning
 PWM_FREQ = 1000 # Frequency of motor control PWM signal
@@ -24,8 +30,8 @@ PIN_RT_PWM = 13 #33 # Pin that controlls the PWM for the right wheels (GPIO13, P
 PIN_ERROR_LED = 17 #11 # Pin connecting to LED that indicates an error
 PIN_LT_POL_FWD = 27 #13 # Pin for commanding drive direction (left wheels)
 PIN_LT_POL_BWD = 22 #15 # Pin for commaiding drive direction (left wheels)
-PIN_RT_POL_FWD = 23 #16 # Pin for commanding drive direction (left wheels)
-PIN_RT_POL_BWD = 24 #18 # Pin for commaiding drive direction (left wheels)
+PIN_RT_POL_FWD = 23 #16 # Pin for commanding drive direction (right wheels)
+PIN_RT_POL_BWD = 24 #18 # Pin for commaiding drive direction (right wheels)
 PIN_LT_LED = 10 #19 # Pin for LED indicating left turn commanded
 PIN_RT_LED = 9 #21 # Pin for LED indicating right turn commanded
 
@@ -174,103 +180,29 @@ def turnOff():
     print("Reset all control pins to LOW")
 
 
-# Pull image from the camera. Only update commands when a new image comes  in
+# Pull image from the camera immediately.
 def getCameraFrame():
-    return image
-
-# Finds all pixels with the color of the leader ball
-def findLeader(image):
-    # Threshold pixels on color (needs to be more complicated than this)
-    leaderMask = np.where(image > 200)
-
-    # Run imclose operation to remove small noise pixels.
-    # Equivalent to erode followed by dilate
-    kernelSize = 10
-    leaderMask = imclose(leaderMask, kernelSize)
-
-    return leaderMask
+    with picamera.PiCamera() as camera:
+        camera.capture(frame, 'rgb')
+        
+    return frame.array
 
 
-# Calculates area of leader pixels
-def calculateLeaderArea(leaderMask):
-    return np.sum(leaderMask)
+# Defines a manually-generated script for how to drive the car.
+def scripted_commands(loopCount):
 
-# Finds the center of the masked area
-def locateMaskCentroid(mask):
-    return np.mean(np.find(mask))
+    # Test: S-turns
+    cycleLoops = 2000
+    lmc = loopCount % cycleLoops
+    if lmc < 0.00*cycleLoops:
+        desiredSteerAngle_deg = 80.0
+    elif (lmc > 0.0*cycleLoops) and (lmc < 1.0*cycleLoops):
 
-# Determine steering and throttle command based on image
-def calculateCommand(image):
-    # Find all pixels with the ball
-    leaderMask = findLeader(image)
-
-    # Area of leader mask determines distance to leader.
-    leaderArea = calculateLeaderArea(leaderMask)
-
-    # If leader is below a certain size threshold, we probably
-    # can't see it. Command no motion. May do something 
-    # smarter in the future.
-    minLeaderSize = 30 # pixels
-    if leaderArea < minLeaderSize:
-        return 0.0, 0.0
-
-    # Centroid of leader mask is where to point. Find it.
-    leaderX, leaderY= locateMaskCentroid(leaderMask)
-
-    # Angle is a linear function of leader X position
-    centerShift = 500 # usually middle of the image
-    angleScale = 0.1 # pixels off center of image to steering degrees conversion. 
-    angle = angleScale * leaderX + centerShift
-
-    # Throttle duty is a function of the inverse of ball size.
-    # Smaller ball area means farther distance to leader,
-    # and thus stronger throttle.
-    areaScale = 100
-    desiredArea = 100
-    throttleDuty = (desiredArea - ballArea) / areaScale
-
-    # Force throttleDuty to be between -1 and 1
-    throttleDuty = np.min([1.0, np.max([-1.0, throttleDuty])])
-
-    return angle, throttleDuty
-
-
-# Get user input from keyboard (if any) and translate to angle and speed.
-def getUserCmd():
-    override = False
-    userSteer = 0.0
-    userDuty = 0.0
-
-    # User override commands are held in a one-character text file.
-    # The file is updated at a high rate by an external program. 
-    # Read that file here.  This allows input over an ssh terminal.
-    try:
-        fd = open("overrideCmd.txt", "r")
-        keypress = fd.read()
-        fd.close()
-    except:
-        keypress = ' '
-        print("Unable to read user override command file. User override " + \
-            "will be unavailable")
-    
-    # Transalte key press
-    if keypress == 'a':  # Left
-        userSteer = -90.0
-        override = True
-    if keypress == 'd':  # Right
-        userSteer = 90.0
-        override = True
-    if keypress == 's':  # Backward
-        userDuty = -1.0
-        override = True
-    if keypress == 'w':  # Forward
-        userDuty = 1.0
-        override = True
-    if keypress == 'c':  # Stop moving
-        userDuty = 0.0
-        override = True
-    
-    return override, userSteer, userDuty
+        desiredSteerAngle_deg = -79.0
+    else:
+        desiredSteerAngle_deg = 0.0
+    desiredSpeed = 1.0 # hardcode for now. Done by algorithm later.
+    return desiredSteerAngle_deg, desiredSpeed
 
 
 # Main loop.  This is looped over external to the function
@@ -279,25 +211,16 @@ def mainLoop(loopCount, pig):
     # Determine the desired steering angle in degrees and speed from 0 
     # (stopped), to 1 (full speed).
     # 0.0 is straight, - is left, + is right
-
-    # Test: S-turns
-    cycleLoops = 2000
-    lmc = loopCount % cycleLoops
-    if lmc < 0.00*cycleLoops:
-        desiredSteerAngle_deg = 80.0
-    elif (lmc > 0.0*cycleLoops) and (lmc < 1.0*cycleLoops):
-        desiredSteerAngle_deg = -79.0
-    else:
-        desiredSteerAngle_deg = 0.0
-    desiredSpeed = 1.0 # hardcode for now. Done by algorithm later.
-
     # Calculate desired steering and angle command from the image content
-    #image = getCameraFrame()
-    #desiredSteerAngle_deg, desiredSpeed = calculateCommand(image)
+    image = getCameraFrame()
+    desiredSteerAngle_deg, desiredSpeed = seeker.calculateCommand(image)
+
+    # Run a scripted command set
+    # desiredSteerAngle_deg, desiredSpeed = scripted_commands(loopCount)
 
     # Get user input from keyboard (if any) and translate to angle and speed.
     # User commands (if any) will override the automatic commands for safety.
-    #override, userSteer, userDuty = getUserCmd()    
+    #override, userSteer, userDuty = user_control.getUserCmd()    
     #if override:
     #    print 'USER OVERRIDE'
     #    desiredSteerAngle_deg = userSteer
