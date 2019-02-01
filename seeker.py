@@ -6,16 +6,36 @@
 # via seeking to a target in onboard camera imagery.
 
 import numpy as np
+import matplotlib.pyplot as plt
+#import cv2  # pip install opencv-python
+import scipy.ndimage.morphology as spm
+
+DEBUG = True
 
 # Finds all pixels with the color of the leader ball
 def findLeader(image):
     # Threshold pixels on color (needs to be more complicated than this)
-    leaderMask = np.where(image > 200)
+    leaderMask = np.logical_and(image[:,:,0] > 230, image[:,:,1] < 200, image[:,:,2] < 200)
+    leaderMask = np.reshape(leaderMask, [image.shape[0], image.shape[1]])
+    if DEBUG:
+        plt.imshow(leaderMask)
+        plt.show()
+        input("BREAKPOINT: Press enter to continue")
 
     # Run imclose operation to remove small noise pixels.
     # Equivalent to erode followed by dilate
-    kernelSize = 10
-    leaderMask = imclose(leaderMask, kernelSize)
+    kernelSize = 20
+    kernel = np.ones((kernelSize,kernelSize), np.bool)
+    eroded = spm.binary_erosion(leaderMask, kernel).astype(np.bool)
+    dilated = spm.binary_dilation(eroded, kernel).astype(np.bool)
+  
+    if DEBUG:
+        plt.imshow(eroded)
+        plt.show() 
+        plt.imshow(dilated)
+        plt.show()
+    
+    leaderMask = dilated
 
     return leaderMask
 
@@ -30,6 +50,13 @@ def locateMaskCentroid(mask):
 
 # Determine steering and throttle command based on image
 def calculateCommand(image):
+    if DEBUG:
+        plt.imshow(image)
+        plt.show()
+        print("type(image): ", type(image))
+        print("image.shape: ", image.shape)
+        input("BREAKPOINT: Press enter to continue")
+        
     # Find all pixels with the ball
     leaderMask = findLeader(image)
 
