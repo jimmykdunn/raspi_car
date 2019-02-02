@@ -18,6 +18,7 @@ import picamera
 import picamera.array
 import user_control
 import seeker
+import io
 
 STEER_SCALE = 1.0 # Calibrates how much to slow motors when turning
 PWM_FREQ = 1000 # Frequency of motor control PWM signal
@@ -182,10 +183,12 @@ def turnOff():
 
 # Pull image from the camera immediately.
 def getCameraFrame():
+    frame = io.BytesIO()
     with picamera.PiCamera() as camera:
-        camera.capture(frame, 'rgb')
-        
-    return frame.array
+        camera.capture(frame, format='jpeg')
+        frame = np.fromstring(frame.getvalue(), dtype=np.uint8)
+    print(frame.shape)
+    return frame
 
 
 # Defines a manually-generated script for how to drive the car.
@@ -222,7 +225,7 @@ def mainLoop(loopCount, pig):
     # User commands (if any) will override the automatic commands for safety.
     #override, userSteer, userDuty = user_control.getUserCmd()    
     #if override:
-    #    print 'USER OVERRIDE'
+    #    print('USER OVERRIDE')
     #    desiredSteerAngle_deg = userSteer
     #    desiredSpeed = userDuty
 
@@ -240,8 +243,8 @@ def mainLoop(loopCount, pig):
 
     # Print status
     if loopCount % 1000 == 0:
-        print '#', loopCount, ' (angle, speed, lduty, rduty) = (', desiredSteerAngle_deg, \
-            ', ', desiredSpeed, ', ', leftDuty, ', ', rightDuty, ')'
+        print('#', loopCount, ' (angle, speed, lduty, rduty) = (', desiredSteerAngle_deg, \
+            ', ', desiredSpeed, ', ', leftDuty, ', ', rightDuty, ')')
 
     # Command the PWM input to the motor drive transistors
     commandPWM(pig, leftDuty, PIN_LT_PWM)

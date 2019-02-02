@@ -7,10 +7,9 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-#import cv2  # pip install opencv-python
 import scipy.ndimage.morphology as spm
 
-DEBUG = True
+DEBUG = False
 
 # Finds all pixels with the color of the leader ball
 def findLeader(image):
@@ -19,8 +18,9 @@ def findLeader(image):
     leaderMask = np.reshape(leaderMask, [image.shape[0], image.shape[1]])
     if DEBUG:
         plt.imshow(leaderMask)
+        plt.title("leader mask")
         plt.show()
-        input("BREAKPOINT: Press enter to continue")
+        #input("BREAKPOINT: Press enter to continue")
 
     # Run imclose operation to remove small noise pixels.
     # Equivalent to erode followed by dilate
@@ -32,7 +32,7 @@ def findLeader(image):
     if DEBUG:
         plt.imshow(eroded)
         plt.title("Eroded")
-        plt.show() 
+        plt.show()
         plt.imshow(dilated)
         plt.title("Dilated")
         plt.show()
@@ -52,48 +52,54 @@ def calculateLeaderArea(leaderMask):
 
 # Finds the center of the masked area
 def locateMaskCentroid(mask):
-    return np.mean(np.find(mask))
+    return np.mean(np.where(mask)[0][0]), np.mean(np.where(mask)[0][1])
 
 # Determine steering and throttle command based on image
 def calculateCommand(image):
     if DEBUG:
         plt.imshow(image)
+        plt.title("original image")
         plt.show()
         print("type(image): ", type(image))
         print("image.shape: ", image.shape)
-        input("BREAKPOINT: Press enter to continue")
+        #input("BREAKPOINT: Press enter to continue")
         
     # Find all pixels with the ball
     leaderMask = findLeader(image)
 
     # Area of leader mask determines distance to leader.
     leaderArea = calculateLeaderArea(leaderMask)
-    leaderFractionalArea = leaderArea/(image.shape[0]*image.shape[1])
+    leaderFractionalArea = float(leaderArea)/(image.shape[0]*image.shape[1])
     if DEBUG:
         print("Leader area (number of pixels): ", leaderArea)
-        print("Leader area (fraction of frame): ", leaderFractionalArea)
+        print("Leader area (percent of frame): ", 100*leaderFractionalArea)
 
     # If leader is below a certain size threshold, we probably
     # can't see it. Command no motion. May do something 
     # smarter in the future.
-    minLeaderSize = 30 # pixels
-    if leaderArea < minLeaderSize:
+    minLeaderSize = 0.0001 # fraction of image
+    if leaderFractionalArea < minLeaderSize:
         return 0.0, 0.0
 
     # Centroid of leader mask is where to point. Find it.
-    leaderX, leaderY= locateMaskCentroid(leaderMask)
+    leaderX, leaderY = locateMaskCentroid(leaderMask)
+    leaderX /= leaderMask.shape[0]
+    leaderY /= leaderMask.shape[1]
+    
+    if DEBUG:
+        print("Leader (X,Y) (percent of frame): (", leaderX*100, ", ", leaderY*100, ")")
 
     # Angle is a linear function of leader X position
-    centerShift = 500 # usually middle of the image
-    angleScale = 0.1 # pixels off center of image to steering degrees conversion. 
-    angle = angleScale * leaderX + centerShift
+    centerShift = 0.5 # usually middle of the image
+    angleScale = 100.0 # steering degrees conversion. 
+    angle = angleScale * (leaderX - centerShift)
 
     # Throttle duty is a function of the inverse of ball size.
     # Smaller ball area means farther distance to leader,
     # and thus stronger throttle.
-    areaScale = 100
-    desiredArea = 100
-    throttleDuty = (desiredArea - ballArea) / areaScale
+    areaScale = 10000
+    desiredArea = 0.007
+    throttleDuty = (desiredArea - leaderFractionalArea) * areaScale
 
     # Force throttleDuty to be between -1 and 1
     throttleDuty = np.min([1.0, np.max([-1.0, throttleDuty])])
