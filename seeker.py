@@ -24,20 +24,20 @@ def findLeader(image):
 
     # Run imclose operation to remove small noise pixels.
     # Equivalent to erode followed by dilate
-    kernelSize = 15
-    kernel = np.ones((kernelSize,kernelSize), np.bool)
-    eroded = spm.binary_erosion(leaderMask, kernel).astype(np.bool)
-    dilated = spm.binary_dilation(eroded, kernel).astype(np.bool)
+    #kernelSize = 15
+    #kernel = np.ones((kernelSize,kernelSize), np.bool)
+    #eroded = spm.binary_erosion(leaderMask, kernel).astype(np.bool)
+    #dilated = spm.binary_dilation(eroded, kernel).astype(np.bool)
   
-    if DEBUG:
-        plt.imshow(eroded)
-        plt.title("Eroded")
-        plt.show()
-        plt.imshow(dilated)
-        plt.title("Dilated")
-        plt.show()
+    #if DEBUG:
+    #    plt.imshow(eroded)
+    #    plt.title("Eroded")
+    #    plt.show()
+    #    plt.imshow(dilated)
+    #    plt.title("Dilated")
+    #    plt.show()
     
-    leaderMask = dilated
+    #leaderMask = dilated
 
     # Pick only the single largest contiguous area, and fit a circle to it.
     # This makes us more robust to spurious junk and on-target lighting.

@@ -183,10 +183,13 @@ def turnOff():
 
 # Pull image from the camera immediately.
 def getCameraFrame():
-    frame = io.BytesIO()
     with picamera.PiCamera() as camera:
-        camera.capture(frame, format='jpeg')
-        frame = np.fromstring(frame.getvalue(), dtype=np.uint8)
+        camera.resolution = (128, 96)
+	#camera.start_preview()
+        with picamera.array.PiRGBArray(camera) as image:
+	    camera.capture(image, format='rgb')
+    	    camera.capture('test.jpg')
+            frame = image.array
     print(frame.shape)
     return frame
 
@@ -195,13 +198,13 @@ def getCameraFrame():
 def scripted_commands(loopCount):
 
     # Test: S-turns
-    cycleLoops = 2000
+    cycleLoops = 6000
     lmc = loopCount % cycleLoops
-    if lmc < 0.00*cycleLoops:
+    if lmc < 0.5*cycleLoops:
         desiredSteerAngle_deg = 80.0
-    elif (lmc > 0.0*cycleLoops) and (lmc < 1.0*cycleLoops):
+    elif (lmc > 0.5*cycleLoops) and (lmc < 1.0*cycleLoops):
 
-        desiredSteerAngle_deg = -79.0
+        desiredSteerAngle_deg = -80.0
     else:
         desiredSteerAngle_deg = 0.0
     desiredSpeed = 1.0 # hardcode for now. Done by algorithm later.
@@ -219,71 +222,6 @@ def mainLoop(loopCount, pig):
     desiredSteerAngle_deg, desiredSpeed = seeker.calculateCommand(image)
 
     # Run a scripted command set
-    # desiredSteerAngle_deg, desiredSpeed = scripted_commands(loopCount)
+    #desiredSteerAngle_deg, desiredSpeed = scripted_commands(loopCount)
 
     # Get user input from keyboard (if any) and translate to angle and speed.
-    # User commands (if any) will override the automatic commands for safety.
-    #override, userSteer, userDuty = user_control.getUserCmd()    
-    #if override:
-    #    print('USER OVERRIDE')
-    #    desiredSteerAngle_deg = userSteer
-    #    desiredSpeed = userDuty
-
-    
-    # Error check the steering angle and speed for validity
-    if np.abs(desiredSteerAngle_deg) > 90.0:
-        error("ERROR: Steering angle (" + desiredSteerAngle_deg + ") too large!")
-    if np.abs(desiredSpeed) > 1.0:
-        error("ERROR: Commanded speed (" + desiredSpeed + ") too large!")
-    
-    # Convert the desired angle and speed into PWM duty factors for the left
-    # and right wheel motors.
-    leftDuty, rightDuty = angleSpeedToDuty(desiredSteerAngle_deg, desiredSpeed)
-    
-
-    # Print status
-    if loopCount % 1000 == 0:
-        print('#', loopCount, ' (angle, speed, lduty, rduty) = (', desiredSteerAngle_deg, \
-            ', ', desiredSpeed, ', ', leftDuty, ', ', rightDuty, ')')
-
-    # Command the PWM input to the motor drive transistors
-    commandPWM(pig, leftDuty, PIN_LT_PWM)
-    commandPWM(pig, rightDuty, PIN_RT_PWM)
-    
-    # Command motor direction (polarity of drive)
-    commandMotorPolarity(leftDuty > 0.0, PIN_LT_POL_FWD)
-    commandMotorPolarity(leftDuty <= 0.0, PIN_LT_POL_BWD)
-    commandMotorPolarity(rightDuty > 0.0, PIN_RT_POL_FWD)
-    commandMotorPolarity(rightDuty <= 0.0, PIN_RT_POL_BWD)
-    
-    # Illuminate LED(s) indicating desired drive direction (informational)
-    illumnateDirectionPins(leftDuty, rightDuty, PIN_LT_LED, PIN_RT_LED)
-    
-    return loopCount
-# end mainLoop
-
-
-# Main execution program.  The intent is for this to be running in
-# the background at all times that the pi is on.  There is a separate
-# physical switch for the drive motors that can be used to prevent the car
-# from actually moving while this program is still running in the background.
-def main():
-
-    # Action to take at program exit
-    atexit.register(turnOff)
-    
-    # Execute any necessary instantiation routines
-    pig = setup()
-
-    
-    # Main execution loop
-    loopCount = 0
-    while True:
-        loopCount = mainLoop(loopCount, pig)
-
-        loopCount += 1
-        #sleep(0.0) # optional pause statement
-
-
-# Actually run the program
-main()
