@@ -9,6 +9,7 @@
 # manual driving are relegated to imported files.
 
 # import matplotlib.pyplot as plt # plotting
+print("Importing libraries")
 import numpy as np # basic math
 from time import sleep # sleep statements
 import RPi.GPIO as GPIO # general purpose output pin control library
@@ -18,13 +19,13 @@ import picamera
 import picamera.array
 import user_control
 import seeker
-import io
 
 STEER_SCALE = 1.0 # Calibrates how much to slow motors when turning
 PWM_FREQ = 1000 # Frequency of motor control PWM signal
 PWM_VAL_MAX = 1e4 # Maximum value of PWM duty command
 
 # Pin mappings
+print("Setting pin mappings")
 PIN_INFO_LED = 4 #7 # Pin connecting to LED that confirms main program is running
 PIN_LT_PWM = 12 #32 # Pin that controls the PWM for the left wheels (GPIO12, PWM0)
 PIN_RT_PWM = 13 #33 # Pin that controlls the PWM for the right wheels (GPIO13, PWM1)
@@ -38,6 +39,7 @@ PIN_RT_LED = 9 #21 # Pin for LED indicating right turn commanded
 
 # Inital setup script
 def setup():
+    print("Running initialization procedure") 
     
     # GPIO Setup
     GPIO.setwarnings(False)
@@ -57,6 +59,7 @@ def setup():
     GPIO.setup(PIN_RT_LED, GPIO.OUT, initial=GPIO.LOW)
 
     # Set up pigpio daemon for PWM
+    print("Setting up pigpio library for PWM commands")
     pig = pigpio.pi()
     for pin in [PIN_LT_PWM, PIN_RT_PWM]:
         pig.set_mode(pin, pigpio.OUTPUT)
@@ -65,7 +68,8 @@ def setup():
 
     # Blink all LEDs 5x to confirm that the program is starting, 
     # leave green one on to confirm main program is running.
-    for i in range(8):
+    print("Blinking lights for visual confirmation of code running")
+    for i in range(4):
         GPIO.output(PIN_INFO_LED, GPIO.HIGH)
         GPIO.output(PIN_ERROR_LED, GPIO.HIGH)
         GPIO.output(PIN_LT_LED, GPIO.HIGH)
@@ -146,21 +150,33 @@ def commandMotorPolarity(polarity, pin):
 
         
 # Illuminate LED(s) indicating desired turn direction
-def illumnateDirectionPins(leftDuty, rightDuty, pin_left, pin_right):
-    if leftDuty > rightDuty:
-        # Car has been commanded to turn right
+def illumnateDirectionPins(angle, leftDuty, rightDuty, pin_left, pin_right):
+    if leftDuty == 0.0 and rightDuty == 0.0:
+	# No command. Do not illuminate lights.
         GPIO.output(pin_left, GPIO.LOW)
-        GPIO.output(pin_right, GPIO.HIGH)
-        
-    if leftDuty < rightDuty:
-        # Car has been commanded to turn left
-        GPIO.output(pin_left, GPIO.HIGH)
         GPIO.output(pin_right, GPIO.LOW)
         
-    if leftDuty == rightDuty:
-        # Car has been commanded to move perfectly straight
-        GPIO.output(pin_left, GPIO.HIGH)
-        GPIO.output(pin_right, GPIO.HIGH)
+    else:
+        if angle > 0:
+            # Car has been commanded to turn right
+            GPIO.output(pin_left, GPIO.LOW)
+            GPIO.output(pin_right, GPIO.HIGH)
+            
+        if angle < 0:
+            # Car has been commanded to turn left
+            GPIO.output(pin_left, GPIO.HIGH)
+            GPIO.output(pin_right, GPIO.LOW)
+
+        if leftDuty < 0.0 and rightDuty < 0.0:
+            # Car has been commanded to reverse
+            GPIO.output(PIN_ERROR_LED, GPIO.HIGH)
+	else:
+	    GPIO.output(PIN_ERROR_LED, GPIO.LOW)
+            
+        if angle == 0:
+            # Car has been commanded to move perfectly straight
+            GPIO.output(pin_left, GPIO.HIGH)
+            GPIO.output(pin_right, GPIO.HIGH)
         
 # end illuminateDirectionPins
 
@@ -183,13 +199,17 @@ def turnOff():
 
 # Pull image from the camera immediately.
 def getCameraFrame():
+    print("Capturing frame")
     with picamera.PiCamera() as camera:
         camera.resolution = (128, 96)
+	camera.rotation = 180
 	#camera.start_preview()
         with picamera.array.PiRGBArray(camera) as image:
 	    camera.capture(image, format='rgb')
-    	    camera.capture('test.jpg')
+    	    #camera.capture('test.jpg', format="jpeg")
             frame = image.array
+            frame = np.transpose(frame, (1,0,2))
+	    print("FRAME SHAPE: ", frame.shape)
     print(frame.shape)
     return frame
 
@@ -222,6 +242,71 @@ def mainLoop(loopCount, pig):
     desiredSteerAngle_deg, desiredSpeed = seeker.calculateCommand(image)
 
     # Run a scripted command set
-    #desiredSteerAngle_deg, desiredSpeed = scripted_commands(loopCount)
+    # desiredSteerAngle_deg, desiredSpeed = scripted_commands(loopCount)
 
     # Get user input from keyboard (if any) and translate to angle and speed.
+    # User commands (if any) will override the automatic commands for safety.
+    #override, userSteer, userDuty = user_control.getUserCmd()    
+    #if override:
+    #    print('USER OVERRIDE')
+    #    desiredSteerAngle_deg = userSteer
+    #    desiredSpeed = userDuty
+
+    
+    # Error check the steering angle and speed for validity
+    if np.abs(desiredSteerAngle_deg) > 90.0:
+        error("ERROR: Steering angle (", desiredSteerAngle_deg, ") too large!")
+    if np.abs(desiredSpeed) > 1.0:
+        error("ERROR: Commanded speed (", desiredSpeed, ") too large!")
+    
+    # Convert the desired angle and speed into PWM duty factors for the left
+    # and right wheel motors.
+    leftDuty, rightDuty = angleSpeedToDuty(desiredSteerAngle_deg, desiredSpeed)
+    
+
+    # Print status
+    if loopCount % 1 == 0:
+        print('#', loopCount, ' (angle, speed, lduty, rduty) = (', desiredSteerAngle_deg, \
+            ', ', desiredSpeed, ', ', leftDuty, ', ', rightDuty, ')')
+
+    # Command the PWM input to the motor drive transistors
+    commandPWM(pig, leftDuty, PIN_LT_PWM)
+    commandPWM(pig, rightDuty, PIN_RT_PWM)
+    
+    # Command motor direction (polarity of drive)
+    commandMotorPolarity(leftDuty > 0.0, PIN_LT_POL_FWD)
+    commandMotorPolarity(leftDuty <= 0.0, PIN_LT_POL_BWD)
+    commandMotorPolarity(rightDuty > 0.0, PIN_RT_POL_FWD)
+    commandMotorPolarity(rightDuty <= 0.0, PIN_RT_POL_BWD)
+    
+    # Illuminate LED(s) indicating desired drive direction (informational)
+    illumnateDirectionPins(desiredSteerAngle_deg, leftDuty, rightDuty, PIN_LT_LED, PIN_RT_LED)
+    
+    return loopCount
+# end mainLoop
+
+
+# Main execution program.  The intent is for this to be running in
+# the background at all times that the pi is on.  There is a separate
+# physical switch for the drive motors that can be used to prevent the car
+# from actually moving while this program is still running in the background.
+def main():
+
+    # Action to take at program exit
+    atexit.register(turnOff)
+    
+    # Execute any necessary instantiation routines
+    pig = setup()
+
+    
+    # Main execution loop
+    loopCount = 0
+    while True:
+        loopCount = mainLoop(loopCount, pig)
+
+        loopCount += 1
+        #sleep(0.0) # optional pause statement
+
+
+# Actually run the program
+main()

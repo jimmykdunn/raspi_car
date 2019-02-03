@@ -11,7 +11,7 @@ import numpy as np
 
 def testseeker():
     # Read test image from file
-    frame = Image.open("test_ball_2ft.jpg")
+    frame = Image.open("test.jpg")
     print("Read test file successfully")
     print("Bit depth: ", frame.bits)
     print("(nx, ny): ", frame.size)
