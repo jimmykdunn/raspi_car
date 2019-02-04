@@ -17,6 +17,10 @@ MIN_LEADER_SIZE = 0.0001
 ANGLE_SCALE = 600.0 # steering degrees conversion. 
 AREA_SCALE = 300 # larger = faster transition to full speed when target is not at desired distance
 DESIRED_AREA = 0.05 # fraction of the full image that we want the target to take up
+AREA_BUFFER = 0.01 # no command will be issued if area is within this much of DESIRED_AREA
+ANGLE_BUFFER = 0.1 # no command will be issued if target center is within this much of image center
+# NOTE: AREA_BUFFER and ANGLE_BUFFER work together - i.e. BOTH must be satisfied for no action
+# to be taken.
 
 # Finds all pixels with the color of the leader ball
 def findLeader(image):
@@ -120,7 +124,11 @@ def calculateCommand(image):
     # Throttle duty is a function of the inverse of ball size.
     # Smaller ball area means farther distance to leader,
     # and thus stronger throttle.
-    throttleDuty = (DESIRED_AREA - leaderFractionalArea) * AREA_SCALE
+    if (np.abs(leaderFractionalArea - DESIRED_AREA) > AREA_BUFFER) \
+	and (np.abs(leaderX - centerShift) > ANGLE_BUFFER):
+    	throttleDuty = (DESIRED_AREA - leaderFractionalArea) * AREA_SCALE
+    else:
+	throttleDuty = 0.0
 
     # Force throttleDuty to be between -1 and 1
     throttleDuty = np.min([1.0, np.max([-1.0, throttleDuty])])

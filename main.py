@@ -71,7 +71,7 @@ def setup():
         pig.hardware_PWM(pin, PWM_FREQ, 0)
         pig.set_PWM_range(pin, PWM_VAL_MAX)
 
-    # Blink all LEDs 5x to confirm that the program is starting, 
+    # Blink all LEDs 4x to confirm that the program is starting, 
     # leave green one on to confirm main program is running.
     print("Blinking lights for visual confirmation of code running")
     for i in range(4):
@@ -286,32 +286,35 @@ def main():
 
     
     # Main execution loop
-    loopCount = 0
-    with picamera.PiCamera() as camera:
+    try:
+        loopCount = 0
+        with picamera.PiCamera() as camera:
 
-	# Action to take at program exit
-        atexit.register(turnOff, camera)
+	    # Action to take at program exit
+            atexit.register(turnOff, camera)
 
-	print("Booting camera")
-	# Camera properties
-        camera.resolution = IMAGE_RES # set resolution
-        camera.rotation = IMAGE_ROTATE_ANGLE # camera is mounted upside down
-        stream = io.BytesIO() # stream to store imagery
-        sleep(2) # let the camera warm up for 2 sec
+	    print("Booting camera")
+	    # Camera properties
+            camera.resolution = IMAGE_RES # set resolution
+            camera.rotation = IMAGE_ROTATE_ANGLE # camera is mounted upside down
+            stream = io.BytesIO() # stream to store imagery
+            sleep(3) # let the camera warm up for 3 sec
 
-	print("Beginning image capture")
-	# Capture images continuously at the natural framerate of the camera
-        for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
-	    stream.seek(0) # reset to the start of the stream so we can read from it
-            image = Image.open(stream)  # read image from stream as PIL image
-	    frame = np.array(image)  # Trnasform PIL image into a numpy ndarray
-            frame = np.transpose(frame, (1,0,2)) # transpose to (x,y) from (y,x)
+	    print("Beginning image capture")
+	    # Capture images continuously at the natural framerate of the camera
+            for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
+	        stream.seek(0) # reset to the start of the stream so we can read from it
+                image = Image.open(stream)  # read image from stream as PIL image
+	        frame = np.array(image)  # Trnasform PIL image into a numpy ndarray
+                frame = np.transpose(frame, (1,0,2)) # transpose to (x,y) from (y,x)
 
-	    # Process image frame and command car
-            loopCount = mainLoop(frame, loopCount, pig)
-	    stream.seek(0)
-            loopCount += 1
-            #sleep(0.0) # optional pause statement
+	        # Process image frame and command car
+                loopCount = mainLoop(frame, loopCount, pig)
+	        stream.seek(0)
+                loopCount += 1
+                #sleep(0.0) # optional pause statement
+    finally:
+	print("Gracefully closing camera")
 	camera.close()
 
 # Actually run the program
