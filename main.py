@@ -24,7 +24,7 @@ from PIL import Image
 
 # Parameters
 STEER_SCALE = 1.0 # Calibrates how much to slow motors when turning
-PWM_FREQ = 1000 # Frequency of motor control PWM signal
+PWM_FREQ = 100 # Frequency of motor control PWM signal
 PWM_VAL_MAX = 1e4 # Maximum value of PWM duty command
 IMAGE_RES = (128, 96)  # (x,y) num pixels of captured imagery
 IMAGE_ROTATE_ANGLE = 180  # Adjust for orientation of camera on car
@@ -187,8 +187,9 @@ def illumnateDirectionPins(angle, leftDuty, rightDuty, pin_left, pin_right):
 
 
 # Turn off pins
-def turnOff():
+def turnOff(camera):
     print("Exiting gracefully")
+    camera.close()
     GPIO.output(PIN_INFO_LED, GPIO.LOW)
     GPIO.output(PIN_LT_PWM, GPIO.LOW)
     GPIO.output(PIN_RT_PWM, GPIO.LOW)
@@ -279,8 +280,6 @@ def mainLoop(image, loopCount, pig):
 # from actually moving while this program is still running in the background.
 def main():
 
-    # Action to take at program exit
-    atexit.register(turnOff)
     
     # Execute any necessary instantiation routines
     pig = setup()
@@ -289,6 +288,10 @@ def main():
     # Main execution loop
     loopCount = 0
     with picamera.PiCamera() as camera:
+
+	# Action to take at program exit
+        atexit.register(turnOff, camera)
+
 	print("Booting camera")
 	# Camera properties
         camera.resolution = IMAGE_RES # set resolution
