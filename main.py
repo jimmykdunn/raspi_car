@@ -22,9 +22,12 @@ import seeker
 import io
 from PIL import Image
 
+# Parameters
 STEER_SCALE = 1.0 # Calibrates how much to slow motors when turning
 PWM_FREQ = 1000 # Frequency of motor control PWM signal
 PWM_VAL_MAX = 1e4 # Maximum value of PWM duty command
+IMAGE_RES = (128, 96)  # (x,y) num pixels of captured imagery
+IMAGE_ROTATE_ANGLE = 180  # Adjust for orientation of camera on car
 
 # Pin mappings
 print("Setting pin mappings")
@@ -288,8 +291,8 @@ def main():
     with picamera.PiCamera() as camera:
 	print("Booting camera")
 	# Camera properties
-        camera.resolution = (128, 96) # set resolution
-        camera.rotation = 180 # camera is mounted upside down
+        camera.resolution = IMAGE_RES # set resolution
+        camera.rotation = IMAGE_ROTATE_ANGLE # camera is mounted upside down
         stream = io.BytesIO() # stream to store imagery
         sleep(2) # let the camera warm up for 2 sec
 

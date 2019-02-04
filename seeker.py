@@ -9,15 +9,28 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.ndimage.morphology as spm
 
+# Parameters
 DEBUG = False
+TARGET_COLOR = "green"  # "red", "blue"
+TARGET_COLOR_THREHSOLD = 0.6 # fraction of R+G+B that target pixels must have
+MIN_LEADER_SIZE = 0.0001
+ANGLE_SCALE = 200.0 # steering degrees conversion. 
+AREA_SCALE = 10000 # larger = faster transition to full speed when target is not at desired distance
+DESIRED_AREA = 0.05 # fraction of the full image that we want the target to take up
 
 # Finds all pixels with the color of the leader ball
 def findLeader(image):
     # Threshold pixels on color (needs to be more complicated than this)
-    #leaderMask = np.logical_and(image[:,:,0] > 230, image[:,:,1] < 200, image[:,:,2] < 200)
-    #redFraction = image[:,:,0].astype(float) / np.sum(image.astype(float), axis=2)
-    redFraction = image[:,:,1].astype(float) / np.sum(image.astype(float), axis=2)
-    leaderMask = redFraction > 0.6
+    ballColorFraction = -1.0
+    if TARGET_COLOR == "red":
+    	ballColorFraction = image[:,:,0].astype(float) / np.sum(image.astype(float), axis=2)
+    elif TARGET_COLOR == "green":
+	ballColorFraction = image[:,:,1].astype(float) / np.sum(image.astype(float), axis=2)
+    elif TARGET_COLOR == "blue":
+	ballColorFraction = image[:,:,2].astype(float) / np.sum(image.astype(float), axis=2)
+    else:
+	print("INVALID TARGET COLOR: ", TARGET_COLOR)
+    leaderMask = ballColorFraction > TARGET_COLOR_THREHSOLD
 
     leaderMask = np.reshape(leaderMask, [image.shape[0], image.shape[1]])
     if DEBUG:
@@ -84,8 +97,7 @@ def calculateCommand(image):
     # If leader is below a certain size threshold, we probably
     # can't see it. Command no motion. May do something 
     # smarter in the future.
-    minLeaderSize = 0.0001 # fraction of image
-    if leaderFractionalArea < minLeaderSize:
+    if leaderFractionalArea < MIN_LEADER_SIZE:
 	print("Leader not found. Car not commanded to move.")
         return 0.0, 0.0
 
@@ -100,8 +112,7 @@ def calculateCommand(image):
 
     # Angle is a linear function of leader X position
     centerShift = 0.5 # usually middle of the image
-    angleScale = 200.0 # steering degrees conversion. 
-    angle = angleScale * (leaderX - centerShift)
+    angle = ANGLE_SCALE * (leaderX - centerShift)
 
     # Force angle to be between -90 and 90
     angle = np.min([90.0, np.max([-90.0, angle])])
@@ -109,6 +120,9 @@ def calculateCommand(image):
     # Throttle duty is a function of the inverse of ball size.
     # Smaller ball area means farther distance to leader,
     # and thus stronger throttle.
-    areaScale = 10000
-    desiredArea = 0.05
-    throttleDuty = (desiredArea - lea
+    throttleDuty = (DESIRED_AREA - leaderFractionalArea) * AREA_SCALE
+
+    # Force throttleDuty to be between -1 and 1
+    throttleDuty = np.min([1.0, np.max([-1.0, throttleDuty])])
+
+    return angle, throttleDuty
