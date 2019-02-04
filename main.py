@@ -19,6 +19,8 @@ import picamera
 import picamera.array
 import user_control
 import seeker
+import io
+from PIL import Image
 
 STEER_SCALE = 1.0 # Calibrates how much to slow motors when turning
 PWM_FREQ = 1000 # Frequency of motor control PWM signal
@@ -197,23 +199,6 @@ def turnOff():
     print("Reset all control pins to LOW")
 
 
-# Pull image from the camera immediately.
-def getCameraFrame():
-    print("Capturing frame")
-    with picamera.PiCamera() as camera:
-        camera.resolution = (128, 96)
-	camera.rotation = 180
-	#camera.start_preview()
-        with picamera.array.PiRGBArray(camera) as image:
-	    camera.capture(image, format='rgb')
-    	    #camera.capture('test.jpg', format="jpeg")
-            frame = image.array
-            frame = np.transpose(frame, (1,0,2))
-	    print("FRAME SHAPE: ", frame.shape)
-    print(frame.shape)
-    return frame
-
-
 # Defines a manually-generated script for how to drive the car.
 def scripted_commands(loopCount):
 
@@ -232,13 +217,12 @@ def scripted_commands(loopCount):
 
 
 # Main loop.  This is looped over external to the function
-def mainLoop(loopCount, pig):
+def mainLoop(image, loopCount, pig):
    
     # Determine the desired steering angle in degrees and speed from 0 
     # (stopped), to 1 (full speed).
     # 0.0 is straight, - is left, + is right
     # Calculate desired steering and angle command from the image content
-    image = getCameraFrame()
     desiredSteerAngle_deg, desiredSpeed = seeker.calculateCommand(image)
 
     # Run a scripted command set
@@ -301,12 +285,28 @@ def main():
     
     # Main execution loop
     loopCount = 0
-    while True:
-        loopCount = mainLoop(loopCount, pig)
+    with picamera.PiCamera() as camera:
+	print("Booting camera")
+	# Camera properties
+        camera.resolution = (128, 96) # set resolution
+        camera.rotation = 180 # camera is mounted upside down
+        stream = io.BytesIO() # stream to store imagery
+        sleep(2) # let the camera warm up for 2 sec
 
-        loopCount += 1
-        #sleep(0.0) # optional pause statement
+	print("Beginning image capture")
+	# Capture images continuously at the natural framerate of the camera
+        for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
+	    stream.seek(0) # reset to the start of the stream so we can read from it
+            image = Image.open(stream)  # read image from stream as PIL image
+	    frame = np.array(image)  # Trnasform PIL image into a numpy ndarray
+            frame = np.transpose(frame, (1,0,2)) # transpose to (x,y) from (y,x)
 
+	    # Process image frame and command car
+            loopCount = mainLoop(frame, loopCount, pig)
+	    stream.seek(0)
+            loopCount += 1
+            #sleep(0.0) # optional pause statement
+	camera.close()
 
 # Actually run the program
 main()

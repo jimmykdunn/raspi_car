@@ -15,7 +15,8 @@ DEBUG = False
 def findLeader(image):
     # Threshold pixels on color (needs to be more complicated than this)
     #leaderMask = np.logical_and(image[:,:,0] > 230, image[:,:,1] < 200, image[:,:,2] < 200)
-    redFraction = image[:,:,0].astype(float) / np.sum(image.astype(float), axis=2)
+    #redFraction = image[:,:,0].astype(float) / np.sum(image.astype(float), axis=2)
+    redFraction = image[:,:,1].astype(float) / np.sum(image.astype(float), axis=2)
     leaderMask = redFraction > 0.6
 
     leaderMask = np.reshape(leaderMask, [image.shape[0], image.shape[1]])
@@ -110,10 +111,4 @@ def calculateCommand(image):
     # and thus stronger throttle.
     areaScale = 10000
     desiredArea = 0.05
-    throttleDuty = (desiredArea - leaderFractionalArea) * areaScale
-
-    # Force throttleDuty to be between -1 and 1
-    throttleDuty = np.min([1.0, np.max([-1.0, throttleDuty])])
-
-    return angle, throttleDuty
-
+    throttleDuty = (desiredArea - lea
