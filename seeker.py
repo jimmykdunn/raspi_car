@@ -94,15 +94,12 @@ def calculateCommand(image):
     # Area of leader mask determines distance to leader.
     leaderArea = calculateLeaderArea(leaderMask)
     leaderFractionalArea = float(leaderArea)/(image.shape[0]*image.shape[1])
-    #if DEBUG:
-    print("Leader area (number of pixels): ", leaderArea)
-    print("Leader area (percent of frame): ", 100*leaderFractionalArea)
 
     # If leader is below a certain size threshold, we probably
     # can't see it. Command no motion. May do something 
     # smarter in the future.
     if leaderFractionalArea < MIN_LEADER_SIZE:
-	print("Leader not found. Car not commanded to move.")
+	print("    Leader not visible. Car commanded to stop.")
         return 0.0, 0.0
 
     # Centroid of leader mask is where to point. Find it.
@@ -110,9 +107,10 @@ def calculateCommand(image):
     leaderX /= leaderMask.shape[0]
     leaderY /= leaderMask.shape[1]
     
-    #if DEBUG:
-    print("Leader (X,Y) (percent of frame): (", \
-	np.round(leaderX*100), ", ", np.round(leaderY*100), ")")
+    print "    areaPix, area%, X%, Y%: ", "{:4d}".format(leaderArea),\
+        "{:5.1f}".format(100*leaderFractionalArea), \
+        "{:3d}".format(np.round(leaderX*100).astype(int)), \
+        "{:3d}".format(np.round(leaderY*100).astype(int))
 
     # Angle is a linear function of leader X position
     centerShift = 0.5 # usually middle of the image

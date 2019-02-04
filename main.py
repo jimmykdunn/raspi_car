@@ -254,8 +254,8 @@ def mainLoop(image, loopCount, pig):
 
     # Print status
     if loopCount % 1 == 0:
-        print('#', loopCount, ' (angle, speed, lduty, rduty) = (', desiredSteerAngle_deg, \
-            ', ', desiredSpeed, ', ', leftDuty, ', ', rightDuty, ')')
+        print '#', "{:5d}".format(loopCount), 'angle, speed, lduty, rduty: ', desiredSteerAngle_deg, \
+            desiredSpeed, leftDuty, rightDuty
 
     # Command the PWM input to the motor drive transistors
     commandPWM(pig, leftDuty, PIN_LT_PWM)
