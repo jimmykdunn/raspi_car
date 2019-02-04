@@ -14,8 +14,8 @@ DEBUG = False
 TARGET_COLOR = "green"  # "red", "blue"
 TARGET_COLOR_THREHSOLD = 0.6 # fraction of R+G+B that target pixels must have
 MIN_LEADER_SIZE = 0.0001
-ANGLE_SCALE = 200.0 # steering degrees conversion. 
-AREA_SCALE = 10000 # larger = faster transition to full speed when target is not at desired distance
+ANGLE_SCALE = 600.0 # steering degrees conversion. 
+AREA_SCALE = 300 # larger = faster transition to full speed when target is not at desired distance
 DESIRED_AREA = 0.05 # fraction of the full image that we want the target to take up
 
 # Finds all pixels with the color of the leader ball
