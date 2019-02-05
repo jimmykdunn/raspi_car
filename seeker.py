@@ -6,7 +6,7 @@
 # via seeking to a target in onboard camera imagery.
 
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import scipy.ndimage.morphology as spm
 
 # Parameters
@@ -123,7 +123,7 @@ def calculateCommand(image):
     # Smaller ball area means farther distance to leader,
     # and thus stronger throttle.
     if (np.abs(leaderFractionalArea - DESIRED_AREA) > AREA_BUFFER) \
-	and (np.abs(leaderX - centerShift) > ANGLE_BUFFER):
+	or (np.abs(leaderX - centerShift) > ANGLE_BUFFER):
     	throttleDuty = (DESIRED_AREA - leaderFractionalArea) * AREA_SCALE
     else:
 	throttleDuty = 0.0
