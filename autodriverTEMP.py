@@ -8,9 +8,8 @@ from time import sleep # sleep statements
 import subprocess
 import signal
 import os
-CONTROLLER_STR = "python counter.py" # what the controller software shows as in ps -ef
- 
-    
+
+
 # Turns off the controller process via linux calls
 def killController():
     # Find all active processes on the raspberry pi
@@ -19,19 +18,30 @@ def killController():
     
     # Find the controller's line and pid and kill it
     for line in plist.splitlines():
-        if CONTROLLER_STR in line:
-            pid = int(line.split()[1]) # [1] is the pid of main.py
-            os.kill(pid, signal.SIGKILL)  
+        print(line)
+        for word in line.split():
+            if 'counter.py' == word:
+                pid = int(line.split()[1]) # [1] is the pid of main.py
+                print("Killing counter.py: ", pid)
+                os.kill(pid, signal.SIGKILL)    
     
+    print("Kill controller exiting")
     
 # Turns on the controller process via linux call
 def startController():
+    #print("Start controller function")
     # Start a single instance of the controller process
-    exestr = CONTROLLER_STR
-    exeprocess = subprocess.Popen(exestr.split(), stdout=subprocess.PIPE)
-    exeprocess.communicate()
-    
-    
+    #exestr = "python counter.py"
+    #DETACHED_PROCESS = 0x00000008
+    #exeprocess = subprocess.Popen(exestr.split(), shell=False, stdin=None, stdout=None, stderr=None, creationflags=DETACHED_PROCESS)
+    #print("execute counter.py")
+    #exeprocess.spawnl()
+    #print("started counter.py")
+    print("execute counter.py")
+    stuff = os.spawnl(os.P_NOWAIT, 'python', ['counter.py'])
+    print(stuff)
+    print("started counter.py")
+
 # Executes a restart of the controller program
 def resetController():         
     killController()
@@ -43,6 +53,7 @@ def main():
     
     # Loop and don't ever exit
     while True:
+        print("Executing loop")
         resetController()            
             
         sleep(10.0) # sleep to prevent overexecution
