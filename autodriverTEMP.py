@@ -18,12 +18,12 @@ def killController():
     
     # Find the controller's line and pid and kill it
     for line in plist.splitlines():
-        print(line)
-        for word in line.split():
-            if 'counter.py' == word:
-                pid = int(line.split()[1]) # [1] is the pid of main.py
-                print("Killing counter.py: ", pid)
-                os.kill(pid, signal.SIGKILL)    
+        line = line.decode("utf-8")
+        if "counter.py" in line:
+            #print(line)
+            pid = int(line.split()[1]) # [1] is the pid of main.py
+            print("Killing controller process: ", pid)
+            os.kill(pid, signal.SIGKILL)    
     
     print("Kill controller exiting")
     
@@ -38,7 +38,7 @@ def startController():
     #exeprocess.spawnl()
     #print("started counter.py")
     print("execute counter.py")
-    stuff = os.spawnl(os.P_NOWAIT, 'python', ['counter.py'])
+    stuff = os.spawnl(os.P_NOWAIT, '/usr/bin/python', 'python', 'counter.py')
     print(stuff)
     print("started counter.py")
 
