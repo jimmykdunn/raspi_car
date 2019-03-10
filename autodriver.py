@@ -17,9 +17,9 @@ import subprocess
 import signal
 import os
 
-PIN_STATUS_LED = 5 # Pin for software active LED !!!CHANGE ME!!!
-PIN_RESET_RPI = 6 # Pin connected to button for resetting the raspberry pi
-PIN_RESET_CONTROL = 7 # Pin connected to button for resetting control SW
+PIN_STATUS_LED = 16 # Pin for software active LED !!!CHANGE ME!!!
+PIN_RESET_RPI = 14 # Pin connected to button for resetting the raspberry pi
+PIN_RESET_CONTROL = 21 # Pin connected to button for resetting control SW
 
 CONTROLLER_STR = "python main.py" # what the controller software shows as in ps -ef
 
@@ -44,6 +44,7 @@ def softShutdown():
     GPIO.output(PIN_STATUS_LED, GPIO.LOW)
     
     # Execute a soft shutdown
+    print("Executing soft shutdown")
     killstr = "sudo shutdown now"
     killprocess = subprocess.Popen(killstr.split(), stdout=subprocess.PIPE)
     killprocess.communicate()[0]
@@ -59,17 +60,22 @@ def killController():
     
     # Find the controller's line and pid and kill it
     for line in plist.splitlines():
-        if CONTROLLER_STR in line:
+        line = line.decode("utf-8")
+        if "main.py" in line:
+            #print(line)
             pid = int(line.split()[1]) # [1] is the pid of main.py
-            os.kill(pid, signal.SIGKILL)  
+            print("Killing controller process: ", pid)
+            os.kill(pid, signal.SIGKILL)    
     
+    print("Kill controller exiting")
     
 # Turns on the controller process via linux call
 def startController():
     # Start a single instance of the controller process
-    exestr = CONTROLLER_STR
-    exeprocess = subprocess.Popen(exestr.split(), stdout=subprocess.PIPE)
-    exeprocess.communicate()
+    print("execute main.py")
+    stuff = os.spawnl(os.P_NOWAIT, '/usr/bin/python', 'python', '/home/pi/car/raspi_car/main.py')
+    print(stuff)
+    print("started main.py")
     
     
 # Executes a restart of the controller program
@@ -80,28 +86,38 @@ def resetController():
 
 
 def main():
-    
+    GPIO.setmode(GPIO.BCM)
     atexit.register(scriptExit)
     
     # Initialize pins
     GPIO.setup(PIN_STATUS_LED, GPIO.OUT, initial=GPIO.LOW)
-    GPIO.setup(PIN_RESET_RPI, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(PIN_RESET_CONTROL, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(PIN_RESET_RPI, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(PIN_RESET_CONTROL, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     
     
-    # Illuminate software-active indication LED
-    GPIO.output(PIN_STATUS_LED, GPIO.HIGH)
+    # Blink software-active indication LED quickly to confirm running
+    for i in range(12):
+	GPIO.output(PIN_STATUS_LED, GPIO.LOW)
+	sleep(0.1)
+	GPIO.output(PIN_STATUS_LED, GPIO.HIGH)
+    	sleep(0.1)
     
     # Loop and don't ever exit
     while True:
         # True (High) indicates button has been pressed. Execute shutdown
-        if GPIO.input(PIN_RESET_RPI):
+        if GPIO.input(PIN_RESET_RPI) == False:
             softShutdown()
+            #GPIO.output(PIN_STATUS_LED, GPIO.LOW)
+            #sleep(1.0)
+            #GPIO.output(PIN_STATUS_LED, GPIO.HIGH)
             
         # True (High) indicates button has been pressed. Restart control
         # program.
-        if GPIO.input(PIN_RESET_CONTROL):
-            resetController()            
+        if GPIO.input(PIN_RESET_CONTROL) == False:
+            resetController()   
+            #GPIO.output(PIN_STATUS_LED, GPIO.LOW)
+            #sleep(1.0)
+            #GPIO.output(PIN_STATUS_LED, GPIO.HIGH)         
             
         sleep(0.1) # sleep to prevent overexecution
     # end while True
