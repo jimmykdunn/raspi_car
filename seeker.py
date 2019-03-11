@@ -8,15 +8,17 @@
 import numpy as np
 #import matplotlib.pyplot as plt
 import scipy.ndimage.morphology as spm
+#import scipy.misc
 
 # Parameters
 DEBUG = False
-TARGET_COLOR = "green"  # "red", "blue"
-TARGET_COLOR_THREHSOLD = 0.6 # fraction of R+G+B that target pixels must have
+TARGET_COLOR = "blue"  # "red", "blue" "green"
+DO_IMOPEN = False # run the imopen operation
+TARGET_COLOR_SENSITIVITY = 0.5 # fraction of R+G+B that target pixels must have
 MIN_LEADER_SIZE = 0.0001
 ANGLE_SCALE = 600.0 # steering degrees conversion. 
 AREA_SCALE = 300 # larger = faster transition to full speed when target is not at desired distance
-DESIRED_AREA = 0.05 # fraction of the full image that we want the target to take up
+DESIRED_AREA = 0.20 # fraction of the full image that we want the target to take up
 AREA_BUFFER = 0.01 # no command will be issued if area is within this much of DESIRED_AREA
 ANGLE_BUFFER = 0.1 # no command will be issued if target center is within this much of image center
 # NOTE: AREA_BUFFER and ANGLE_BUFFER work together - i.e. BOTH must be satisfied for no action
@@ -34,21 +36,26 @@ def findLeader(image):
 	ballColorFraction = image[:,:,2].astype(float) / np.sum(image.astype(float), axis=2)
     else:
 	print("INVALID TARGET COLOR: ", TARGET_COLOR)
-    leaderMask = ballColorFraction > TARGET_COLOR_THREHSOLD
+    leaderMask = ballColorFraction > TARGET_COLOR_SENSITIVITY
 
     leaderMask = np.reshape(leaderMask, [image.shape[0], image.shape[1]])
+
+    #scipy.misc.toimage(image).save('fullImage.jpg')
+    #scipy.misc.toimage(leaderMask).save('leaderMask.jpg')
     if DEBUG:
-        plt.imshow(leaderMask)
-        plt.title("leader mask")
-        plt.show()
-        #input("BREAKPOINT: Press enter to continue")
+    	#plt.imshow(leaderMask)
+        #plt.title("leader mask")
+        #plt.show()
+        input("BREAKPOINT: Press enter to continue")
 
     # Run imclose operation to remove small noise pixels.
     # Equivalent to erode followed by dilate
-    kernelSize = np.round(image.shape[0] * 0.04).astype(int)
-    kernel = np.ones((kernelSize,kernelSize), np.bool)
-    eroded = spm.binary_erosion(leaderMask, kernel).astype(np.bool)
-    dilated = spm.binary_dilation(eroded, kernel).astype(np.bool)
+    if DO_IMOPEN:
+    	kernelSize = np.round(image.shape[0] * 0.04).astype(int)
+    	kernel = np.ones((kernelSize,kernelSize), np.bool)
+    	eroded = spm.binary_erosion(leaderMask, kernel).astype(np.bool)
+    	dilated = spm.binary_dilation(eroded, kernel).astype(np.bool)
+    	leaderMask = dilated
   
     #if DEBUG:
     #    plt.imshow(eroded)
@@ -58,7 +65,6 @@ def findLeader(image):
     #    plt.title("Dilated")
     #    plt.show()
     
-    leaderMask = dilated
 
     # Pick only the single largest contiguous area, and fit a circle to it.
     # This makes us more robust to spurious junk and on-target lighting.
@@ -93,6 +99,7 @@ def calculateCommand(image):
 
     # Area of leader mask determines distance to leader.
     leaderArea = calculateLeaderArea(leaderMask)
+    #print("leaderArea: ", leaderArea, ", Image shape: ", image.shape)        
     leaderFractionalArea = float(leaderArea)/(image.shape[0]*image.shape[1])
 
     # If leader is below a certain size threshold, we probably
@@ -130,5 +137,8 @@ def calculateCommand(image):
 
     # Force throttleDuty to be between -1 and 1
     throttleDuty = np.min([1.0, np.max([-1.0, throttleDuty])])
+    
+    # Do not allow negative throttleDuty (i.e. don't go in reverse)
+    throttleDuty = np.max([0.0, throttleDuty])
 
     return angle, throttleDuty

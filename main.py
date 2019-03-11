@@ -31,7 +31,7 @@ IMAGE_ROTATE_ANGLE = 180  # Adjust for orientation of camera on car
 
 # Pin mappings
 print("Setting pin mappings")
-PIN_INFO_LED = 4 #7 # Pin connecting to LED that confirms main program is running
+PIN_INFO_LED = 26 #7 # Pin connecting to LED that confirms main program is running
 PIN_LT_PWM = 12 #32 # Pin that controls the PWM for the left wheels (GPIO12, PWM0)
 PIN_RT_PWM = 13 #33 # Pin that controlls the PWM for the right wheels (GPIO13, PWM1)
 PIN_ERROR_LED = 17 #11 # Pin connecting to LED that indicates an error
@@ -230,7 +230,7 @@ def mainLoop(image, loopCount, pig):
     desiredSteerAngle_deg, desiredSpeed = seeker.calculateCommand(image)
 
     # Run a scripted command set
-    # desiredSteerAngle_deg, desiredSpeed = scripted_commands(loopCount)
+    #desiredSteerAngle_deg, desiredSpeed = scripted_commands(loopCount)
 
     # Get user input from keyboard (if any) and translate to angle and speed.
     # User commands (if any) will override the automatic commands for safety.
@@ -283,39 +283,46 @@ def main():
     
     # Execute any necessary instantiation routines
     pig = setup()
+    
 
     
     # Main execution loop
-    try:
-        loopCount = 0
+    if True: # True to use the camera
         with picamera.PiCamera() as camera:
+    	    try:
+    		loopCount = 0
+	        # Action to take at program exit
+                atexit.register(turnOff, camera)
 
-	    # Action to take at program exit
-            atexit.register(turnOff, camera)
+	        print("Booting camera")
+	        # Camera properties
+                camera.resolution = IMAGE_RES # set resolution
+                camera.rotation = IMAGE_ROTATE_ANGLE # camera is mounted upside down
+                stream = io.BytesIO() # stream to store imagery
+                sleep(3) # let the camera warm up for 3 sec
 
-	    print("Booting camera")
-	    # Camera properties
-            camera.resolution = IMAGE_RES # set resolution
-            camera.rotation = IMAGE_ROTATE_ANGLE # camera is mounted upside down
-            stream = io.BytesIO() # stream to store imagery
-            sleep(3) # let the camera warm up for 3 sec
+	        print("Beginning image capture")
+    	        # Capture images continuously at the natural framerate of the camera
+                for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
+	            stream.seek(0) # reset to the start of the stream so we can read from it
+                    image = Image.open(stream)  # read image from stream as PIL image
+	            frame = np.array(image)  # Trnasform PIL image into a numpy ndarray
+                    frame = np.transpose(frame, (1,0,2)) # transpose to (x,y) from (y,x)
 
-	    print("Beginning image capture")
-	    # Capture images continuously at the natural framerate of the camera
-            for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
-	        stream.seek(0) # reset to the start of the stream so we can read from it
-                image = Image.open(stream)  # read image from stream as PIL image
-	        frame = np.array(image)  # Trnasform PIL image into a numpy ndarray
-                frame = np.transpose(frame, (1,0,2)) # transpose to (x,y) from (y,x)
-
-	        # Process image frame and command car
-                loopCount = mainLoop(frame, loopCount, pig)
-	        stream.seek(0)
-                loopCount += 1
-                #sleep(0.0) # optional pause statement
-    finally:
-	print("Gracefully closing camera")
-	camera.close()
+	            # Process image frame and command car
+                    loopCount = mainLoop(frame, loopCount, pig)
+	            stream.seek(0)
+                    loopCount += 1
+                    #sleep(0.0) # optional pause statement
+            finally:
+	        print("Gracefully closing camera")
+	        camera.close()
+    else:
+        loopCount = 0
+        while True:
+            mainLoop(0, loopCount, pig)
+            loopCount += 1
+            #sleep(0.01) # optional pause statement
 
 # Actually run the program
 main()

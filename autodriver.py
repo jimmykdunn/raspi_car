@@ -21,7 +21,7 @@ PIN_STATUS_LED = 16 # Pin for software active LED !!!CHANGE ME!!!
 PIN_RESET_RPI = 14 # Pin connected to button for resetting the raspberry pi
 PIN_RESET_CONTROL = 21 # Pin connected to button for resetting control SW
 
-CONTROLLER_STR = "python main.py" # what the controller software shows as in ps -ef
+CONTROLLER_STR = "main.py" # what the controller software shows as in ps -ef
 
 
 # Function to run when this program ends (intentionally or otherwise)
