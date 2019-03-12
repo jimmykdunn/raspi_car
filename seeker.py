@@ -9,6 +9,7 @@ import numpy as np
 #import matplotlib.pyplot as plt
 import scipy.ndimage.morphology as spm
 #import scipy.misc
+import datetime
 
 # Parameters
 DEBUG = False
@@ -18,14 +19,21 @@ TARGET_COLOR_SENSITIVITY = 0.5 # fraction of R+G+B that target pixels must have
 MIN_LEADER_SIZE = 0.0001
 ANGLE_SCALE = 600.0 # steering degrees conversion. 
 AREA_SCALE = 300 # larger = faster transition to full speed when target is not at desired distance
-DESIRED_AREA = 0.20 # fraction of the full image that we want the target to take up
+DESIRED_AREA = 0.10 # fraction of the full image that we want the target to take up
 AREA_BUFFER = 0.01 # no command will be issued if area is within this much of DESIRED_AREA
 ANGLE_BUFFER = 0.1 # no command will be issued if target center is within this much of image center
 # NOTE: AREA_BUFFER and ANGLE_BUFFER work together - i.e. BOTH must be satisfied for no action
 # to be taken.
+COAST_TIME = 4.0 # Seconds car is allowed to coast last command before stopping when target not visible
+
+# Global variables
+timeTgtLastVisible = datetime.datetime(2019,01,01,00,00,01)
+prevValidAngle = 0.0
+prevValidDuty = 0.0
 
 # Finds all pixels with the color of the leader ball
 def findLeader(image):
+
     # Threshold pixels on color (needs to be more complicated than this)
     ballColorFraction = -1.0
     if TARGET_COLOR == "red":
@@ -86,6 +94,10 @@ def locateMaskCentroid(mask):
 
 # Determine steering and throttle command based on image
 def calculateCommand(image):
+    global timeTgtLastVisible
+    global prevValidAngle
+    global prevValidDuty
+    
     if DEBUG:
         plt.imshow(image)
         plt.title("original image")
@@ -105,35 +117,54 @@ def calculateCommand(image):
     # If leader is below a certain size threshold, we probably
     # can't see it. Command no motion. May do something 
     # smarter in the future.
+    angle = 0.0
+    throttleDuty = 0.0
     if leaderFractionalArea < MIN_LEADER_SIZE:
-	print("    Leader not visible. Car commanded to stop.")
-        return 0.0, 0.0
-
-    # Centroid of leader mask is where to point. Find it.
-    leaderX, leaderY = locateMaskCentroid(leaderMask)
-    leaderX /= leaderMask.shape[0]
-    leaderY /= leaderMask.shape[1]
-    
-    print "    areaPix, area%, X%, Y%: ", "{:4d}".format(leaderArea),\
-        "{:5.1f}".format(100*leaderFractionalArea), \
-        "{:3d}".format(np.round(leaderX*100).astype(int)), \
-        "{:3d}".format(np.round(leaderY*100).astype(int))
-
-    # Angle is a linear function of leader X position
-    centerShift = 0.5 # usually middle of the image
-    angle = ANGLE_SCALE * (leaderX - centerShift)
-
-    # Force angle to be between -90 and 90
-    angle = np.min([90.0, np.max([-90.0, angle])])
-
-    # Throttle duty is a function of the inverse of ball size.
-    # Smaller ball area means farther distance to leader,
-    # and thus stronger throttle.
-    if (np.abs(leaderFractionalArea - DESIRED_AREA) > AREA_BUFFER) \
-	or (np.abs(leaderX - centerShift) > ANGLE_BUFFER):
-    	throttleDuty = (DESIRED_AREA - leaderFractionalArea) * AREA_SCALE
+        
+        # Target is not (easily) visible. Repeat last command, so long as
+        # we have not been without target visibility in more than N sec
+        currentTime = datetime.datetime.now()
+        dt = (currentTime - timeTgtLastVisible).total_seconds()
+	print("    Leader not visible. Coasted for ", dt, " seconds")
+        if COAST_TIME >= dt:
+	    #print("    Prev angle: ", prevValidAngle)
+	    #print("    Prev duty: ", prevValidDuty)
+            angle = prevValidAngle
+	    throttleDuty = prevValidDuty
+	else:
+	    print("    Leader lost. Car commanded to stop.")
+            return 0.0, 0.0
     else:
-	throttleDuty = 0.0
+    
+        # Centroid of leader mask is where to point. Find it.
+        leaderX, leaderY = locateMaskCentroid(leaderMask)
+        leaderX /= leaderMask.shape[0]
+        leaderY /= leaderMask.shape[1]
+    
+        print "    areaPix, area%, X%, Y%: ", "{:4d}".format(leaderArea),\
+            "{:5.1f}".format(100*leaderFractionalArea), \
+            "{:3d}".format(np.round(leaderX*100).astype(int)), \
+            "{:3d}".format(np.round(leaderY*100).astype(int))
+
+        # Angle is a linear function of leader X position
+        centerShift = 0.5 # usually middle of the image
+        angle = ANGLE_SCALE * (leaderX - centerShift)
+
+        # Force angle to be between -90 and 90
+        angle = np.min([90.0, np.max([-90.0, angle])])
+
+        # Throttle duty is a function of the inverse of ball size.
+        # Smaller ball area means farther distance to leader,
+        # and thus stronger throttle.
+        if (np.abs(leaderFractionalArea - DESIRED_AREA) > AREA_BUFFER) \
+	    or (np.abs(leaderX - centerShift) > ANGLE_BUFFER):
+    	    throttleDuty = (DESIRED_AREA - leaderFractionalArea) * AREA_SCALE
+    	
+    	    # Save current time as time the target was last visible
+    	    timeTgtLastVisible = datetime.datetime.now()
+    	    prevValidAngle = angle
+    	    prevValidDuty = throttleDuty
+        
 
     # Force throttleDuty to be between -1 and 1
     throttleDuty = np.min([1.0, np.max([-1.0, throttleDuty])])
