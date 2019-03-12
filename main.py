@@ -34,12 +34,12 @@ print("Setting pin mappings")
 PIN_INFO_LED = 26 #7 # Pin connecting to LED that confirms main program is running
 PIN_LT_PWM = 12 #32 # Pin that controls the PWM for the left wheels (GPIO12, PWM0)
 PIN_RT_PWM = 13 #33 # Pin that controlls the PWM for the right wheels (GPIO13, PWM1)
-PIN_ERROR_LED = 17 #11 # Pin connecting to LED that indicates an error
-PIN_LT_POL_FWD = 27 #13 # Pin for commanding drive direction (left wheels)
+PIN_ERROR_LED = 5 #11 # Pin connecting to LED that indicates an error
+PIN_LT_POL_FWD = 6 #13 # Pin for commanding drive direction (left wheels)
 PIN_LT_POL_BWD = 22 #15 # Pin for commaiding drive direction (left wheels)
 PIN_RT_POL_FWD = 23 #16 # Pin for commanding drive direction (right wheels)
 PIN_RT_POL_BWD = 24 #18 # Pin for commaiding drive direction (right wheels)
-PIN_LT_LED = 10 #19 # Pin for LED indicating left turn commanded
+PIN_LT_LED = 4 #19 # Pin for LED indicating left turn commanded
 PIN_RT_LED = 9 #21 # Pin for LED indicating right turn commanded
 
 # Inital setup script
