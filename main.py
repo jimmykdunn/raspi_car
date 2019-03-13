@@ -21,6 +21,10 @@ import user_control
 import seeker
 import io
 from PIL import Image
+import logger
+import os
+import glob
+import datetime
 
 # Parameters
 STEER_SCALE = 1.0 # Calibrates how much to slow motors when turning
@@ -28,6 +32,9 @@ PWM_FREQ = 100 # Frequency of motor control PWM signal
 PWM_VAL_MAX = 1e4 # Maximum value of PWM duty command
 IMAGE_RES = (128, 96)  # (x,y) num pixels of captured imagery
 IMAGE_ROTATE_ANGLE = 180  # Adjust for orientation of camera on car
+IMAGE_SAVENAME = "videos/frame" # path to save images to
+MASK_SAVENAME = "videos/mask"  # path to save mask images to
+LOGFILE = "logs/raspicar.log" # path to save logfiles to
 
 # Pin mappings
 print("Setting pin mappings")
@@ -43,8 +50,8 @@ PIN_LT_LED = 4 #19 # Pin for LED indicating left turn commanded
 PIN_RT_LED = 9 #21 # Pin for LED indicating right turn commanded
 
 # Inital setup script
-def setup():
-    print("Running initialization procedure") 
+def setup(log):
+    log.write("Running initialization procedure\n") 
     
     # GPIO Setup
     GPIO.setwarnings(False)
@@ -64,7 +71,7 @@ def setup():
     GPIO.setup(PIN_RT_LED, GPIO.OUT, initial=GPIO.LOW)
 
     # Set up pigpio daemon for PWM
-    print("Setting up pigpio library for PWM commands")
+    log.write("Setting up pigpio library for PWM commands\n")
     pig = pigpio.pi()
     for pin in [PIN_LT_PWM, PIN_RT_PWM]:
         pig.set_mode(pin, pigpio.OUTPUT)
@@ -73,7 +80,7 @@ def setup():
 
     # Blink all LEDs 4x to confirm that the program is starting, 
     # leave green one on to confirm main program is running.
-    print("Blinking lights for visual confirmation of code running")
+    log.write("Blinking lights for visual confirmation of code running\n")
     for i in range(4):
         GPIO.output(PIN_INFO_LED, GPIO.HIGH)
         GPIO.output(PIN_ERROR_LED, GPIO.HIGH)
@@ -90,7 +97,7 @@ def setup():
     # Maybe also connect passive buzzer and play a tone to indicate poweron?
     # Nice to have, but not necessary.
 
-    print("Initialization complete")
+    log.write("Initialization complete\n")
 
     return pig
     
@@ -187,8 +194,8 @@ def illumnateDirectionPins(angle, leftDuty, rightDuty, pin_left, pin_right):
 
 
 # Turn off pins
-def turnOff(camera):
-    print("Exiting gracefully")
+def turnOff(camera, log):
+    log.write("Exiting gracefully\n")
     camera.close()
     GPIO.output(PIN_INFO_LED, GPIO.LOW)
     GPIO.output(PIN_LT_PWM, GPIO.LOW)
@@ -200,7 +207,7 @@ def turnOff(camera):
     GPIO.output(PIN_RT_POL_BWD, GPIO.LOW)
     GPIO.output(PIN_LT_LED, GPIO.LOW)
     GPIO.output(PIN_RT_LED, GPIO.LOW)
-    print("Reset all control pins to LOW")
+    log.write("Reset all control pins to LOW\n")
 
 
 # Defines a manually-generated script for how to drive the car.
@@ -221,13 +228,13 @@ def scripted_commands(loopCount):
 
 
 # Main loop.  This is looped over external to the function
-def mainLoop(image, loopCount, pig):
+def mainLoop(image, loopCount, pig, log):
    
     # Determine the desired steering angle in degrees and speed from 0 
     # (stopped), to 1 (full speed).
     # 0.0 is straight, - is left, + is right
     # Calculate desired steering and angle command from the image content
-    desiredSteerAngle_deg, desiredSpeed = seeker.calculateCommand(image)
+    desiredSteerAngle_deg, desiredSpeed, leaderMask = seeker.calculateCommand(image, loopCount, log)
 
     # Run a scripted command set
     #desiredSteerAngle_deg, desiredSpeed = scripted_commands(loopCount)
@@ -254,8 +261,9 @@ def mainLoop(image, loopCount, pig):
 
     # Print status
     if loopCount % 1 == 0:
-        print '#', "{:5d}".format(loopCount), 'angle, speed, lduty, rduty: ', desiredSteerAngle_deg, \
-            desiredSpeed, leftDuty, rightDuty
+        log.write("###," + "{:5d}".format(loopCount) + ', angle, speed, lduty, rduty: ' + \
+            str(desiredSteerAngle_deg) + ", " + \
+            str(desiredSpeed) + ", " + str(leftDuty) + ", " + str(rightDuty) + "\n")
 
     # Command the PWM input to the motor drive transistors
     commandPWM(pig, leftDuty, PIN_LT_PWM)
@@ -270,6 +278,10 @@ def mainLoop(image, loopCount, pig):
     # Illuminate LED(s) indicating desired drive direction (informational)
     illumnateDirectionPins(desiredSteerAngle_deg, leftDuty, rightDuty, PIN_LT_LED, PIN_RT_LED)
     
+    # Save leader mask image to fill
+    print "mask shape: ", leaderMask.shape
+    logger.saveImage(leaderMask, MASK_SAVENAME, loopCount)
+    
     return loopCount
 # end mainLoop
 
@@ -280,11 +292,23 @@ def mainLoop(image, loopCount, pig):
 # from actually moving while this program is still running in the background.
 def main():
 
+    # Remove old videos and logs
+    oldVideos = glob.glob("videos/*")
+    for im in oldVideos:
+    	os.remove(im)
+    oldLogs = glob.glob("logs/*")
+    for logfile in oldLogs:
+    	os.remove(logfile)
+    	
+    # Open logfile
+    print "Writing logfile to ", LOGFILE
+    print "Use \"tail -f ", LOGFILE, "\" to watch live feed of log"
+    log = open(LOGFILE,"w")
+    log.write("Raspicar main.py started at " + datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S") + "\n")
     
     # Execute any necessary instantiation routines
-    pig = setup()
+    pig = setup(log)
     
-
     
     # Main execution loop
     if True: # True to use the camera
@@ -292,16 +316,16 @@ def main():
     	    try:
     		loopCount = 0
 	        # Action to take at program exit
-                atexit.register(turnOff, camera)
+                atexit.register(turnOff, camera, log)
 
-	        print("Booting camera")
+	        log.write("Booting camera\n")
 	        # Camera properties
                 camera.resolution = IMAGE_RES # set resolution
                 camera.rotation = IMAGE_ROTATE_ANGLE # camera is mounted upside down
                 stream = io.BytesIO() # stream to store imagery
                 sleep(3) # let the camera warm up for 3 sec
 
-	        print("Beginning image capture")
+	        log.write("Beginning image capture\n")
     	        # Capture images continuously at the natural framerate of the camera
                 for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
 	            stream.seek(0) # reset to the start of the stream so we can read from it
@@ -310,12 +334,16 @@ def main():
                     frame = np.transpose(frame, (1,0,2)) # transpose to (x,y) from (y,x)
 
 	            # Process image frame and command car
-                    loopCount = mainLoop(frame, loopCount, pig)
+                    loopCount = mainLoop(frame, loopCount, pig, log)
+                    
+                    # Save image to file
+                    logger.saveImage(frame, IMAGE_SAVENAME, loopCount)
+                    
 	            stream.seek(0)
                     loopCount += 1
                     #sleep(0.0) # optional pause statement
             finally:
-	        print("Gracefully closing camera")
+	        log.write("Gracefully closing camera\n")
 	        camera.close()
     else:
         loopCount = 0

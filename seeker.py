@@ -10,6 +10,7 @@ import numpy as np
 import scipy.ndimage.morphology as spm
 #import scipy.misc
 import datetime
+import logger
 
 # Parameters
 DEBUG = False
@@ -93,7 +94,7 @@ def locateMaskCentroid(mask):
     return np.mean(np.where(mask)[0]), np.mean(np.where(mask)[1])
 
 # Determine steering and throttle command based on image
-def calculateCommand(image):
+def calculateCommand(image, loopCount, log):
     global timeTgtLastVisible
     global prevValidAngle
     global prevValidDuty
@@ -113,7 +114,7 @@ def calculateCommand(image):
     leaderArea = calculateLeaderArea(leaderMask)
     #print("leaderArea: ", leaderArea, ", Image shape: ", image.shape)        
     leaderFractionalArea = float(leaderArea)/(image.shape[0]*image.shape[1])
-
+    
     # If leader is below a certain size threshold, we probably
     # can't see it. Command no motion. May do something 
     # smarter in the future.
@@ -125,15 +126,15 @@ def calculateCommand(image):
         # we have not been without target visibility in more than N sec
         currentTime = datetime.datetime.now()
         dt = (currentTime - timeTgtLastVisible).total_seconds()
-	print("    Leader not visible. Coasted for ", dt, " seconds")
+	log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Coasted for " + str(dt) + " seconds\n")
         if COAST_TIME >= dt:
 	    #print("    Prev angle: ", prevValidAngle)
 	    #print("    Prev duty: ", prevValidDuty)
             angle = prevValidAngle
 	    throttleDuty = prevValidDuty
 	else:
-	    print("    Leader lost. Car commanded to stop.")
-            return 0.0, 0.0
+	    log.write("^^^," + "{:5d}".format(loopCount) + ", Leader lost. Car commanded to stop.\n")
+            return 0.0, 0.0, leaderMask
     else:
     
         # Centroid of leader mask is where to point. Find it.
@@ -141,10 +142,10 @@ def calculateCommand(image):
         leaderX /= leaderMask.shape[0]
         leaderY /= leaderMask.shape[1]
     
-        print "    areaPix, area%, X%, Y%: ", "{:4d}".format(leaderArea),\
-            "{:5.1f}".format(100*leaderFractionalArea), \
-            "{:3d}".format(np.round(leaderX*100).astype(int)), \
-            "{:3d}".format(np.round(leaderY*100).astype(int))
+        log.write(">>>," + "{:5d}".format(loopCount) + ", areaPix, area%, X%, Y%: " + "{:4d}".format(leaderArea) + \
+            "{:5.1f}".format(100*leaderFractionalArea) + ", " + \
+            "{:3d}".format(np.round(leaderX*100).astype(int)) + ", " + \
+            "{:3d}".format(np.round(leaderY*100).astype(int)) + "\n")
 
         # Angle is a linear function of leader X position
         centerShift = 0.5 # usually middle of the image
@@ -172,4 +173,4 @@ def calculateCommand(image):
     # Do not allow negative throttleDuty (i.e. don't go in reverse)
     throttleDuty = np.max([0.0, throttleDuty])
 
-    return angle, throttleDuty
+    return angle, throttleDuty, leaderMask
