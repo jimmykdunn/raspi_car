@@ -30,7 +30,9 @@ import datetime
 STEER_SCALE = 1.0 # Calibrates how much to slow motors when turning
 PWM_FREQ = 100 # Frequency of motor control PWM signal
 PWM_VAL_MAX = 1e4 # Maximum value of PWM duty command
-IMAGE_RES = (128, 96)  # (x,y) num pixels of captured imagery
+IMAGE_RES_FULL = (640,480) #(128, 96)  # (x,y) num pixels of captured imagery
+IMAGE_RES_PROC = (80,60) #(80,60) # (x,y) num pixels of processed imagery
+FRAMERATE = 30
 IMAGE_ROTATE_ANGLE = 180  # Adjust for orientation of camera on car
 IMAGE_SAVENAME = "videos/frame" # path to save images to
 MASK_SAVENAME = "videos/mask"  # path to save mask images to
@@ -81,18 +83,7 @@ def setup(log):
     # Blink all LEDs 4x to confirm that the program is starting, 
     # leave green one on to confirm main program is running.
     log.write("Blinking lights for visual confirmation of code running\n")
-    for i in range(4):
-        GPIO.output(PIN_INFO_LED, GPIO.HIGH)
-        GPIO.output(PIN_ERROR_LED, GPIO.HIGH)
-        GPIO.output(PIN_LT_LED, GPIO.HIGH)
-        GPIO.output(PIN_RT_LED, GPIO.HIGH)
-        sleep(0.2)
-        GPIO.output(PIN_INFO_LED, GPIO.LOW)
-        GPIO.output(PIN_ERROR_LED, GPIO.LOW)
-        GPIO.output(PIN_LT_LED, GPIO.LOW)
-        GPIO.output(PIN_RT_LED, GPIO.LOW)
-        sleep(0.2)
-    GPIO.output(PIN_INFO_LED, GPIO.HIGH)
+    blinkAllLEDs(0.2, 4)
         
     # Maybe also connect passive buzzer and play a tone to indicate poweron?
     # Nice to have, but not necessary.
@@ -103,6 +94,34 @@ def setup(log):
     
 # end setup
     
+
+# Blinks all the LEDs for with sec rate for repeat times
+def blinkAllLEDs(sec, repeat):
+
+    for i in range(repeat):
+        GPIO.output(PIN_INFO_LED, GPIO.HIGH)
+        GPIO.output(PIN_ERROR_LED, GPIO.HIGH)
+        GPIO.output(PIN_LT_LED, GPIO.HIGH)
+        GPIO.output(PIN_RT_LED, GPIO.HIGH)
+        sleep(sec)
+        GPIO.output(PIN_INFO_LED, GPIO.LOW)
+        GPIO.output(PIN_ERROR_LED, GPIO.LOW)
+        GPIO.output(PIN_LT_LED, GPIO.LOW)
+        GPIO.output(PIN_RT_LED, GPIO.LOW)
+        sleep(sec)
+    GPIO.output(PIN_INFO_LED, GPIO.HIGH)
+    
+
+# Blinks a single LED for the specified time (sec), and number of times (repeat)
+# Leaves it off at the end
+def blinkLED(pin, sec, repeat):
+    for i in range(repeat):
+        GPIO.output(pin, GPIO.HIGH)
+        sleep(sec)
+        GPIO.output(pin, GPIO.LOW)
+        sleep(sec)
+    GPIO.output(pin, GPIO.LOW)
+        
     
 # Function to run when error is indicated    
 def error(message):
@@ -261,7 +280,7 @@ def mainLoop(image, loopCount, pig, log):
 
     # Print status
     if loopCount % 1 == 0:
-        log.write("###," + "{:5d}".format(loopCount) + ', angle, speed, lduty, rduty: ' + \
+        log.write("###," + "{:5d}".format(loopCount) + ', angle, speed, lduty, rduty, ' + \
             str(desiredSteerAngle_deg) + ", " + \
             str(desiredSpeed) + ", " + str(leftDuty) + ", " + str(rightDuty) + "\n")
 
@@ -279,7 +298,7 @@ def mainLoop(image, loopCount, pig, log):
     illumnateDirectionPins(desiredSteerAngle_deg, leftDuty, rightDuty, PIN_LT_LED, PIN_RT_LED)
     
     # Save leader mask image to fill
-    print "mask shape: ", leaderMask.shape
+    #print "mask shape: ", leaderMask.shape
     logger.saveImage(leaderMask, MASK_SAVENAME, loopCount)
     
     return loopCount
@@ -304,13 +323,12 @@ def main():
     print "Writing logfile to ", LOGFILE
     print "Use \"tail -f ", LOGFILE, "\" to watch live feed of log"
     log = open(LOGFILE,"w")
-    log.write("Raspicar main.py started at " + datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S") + "\n")
     
     # Execute any necessary instantiation routines
     pig = setup(log)
-    
-    
+        
     # Main execution loop
+    lastTime = datetime.datetime.now()
     if True: # True to use the camera
         with picamera.PiCamera() as camera:
     	    try:
@@ -319,29 +337,49 @@ def main():
                 atexit.register(turnOff, camera, log)
 
 	        log.write("Booting camera\n")
-	        # Camera properties
-                camera.resolution = IMAGE_RES # set resolution
+	        
+	        # Camera setup
+                camera.resolution = IMAGE_RES_FULL # set resolution
                 camera.rotation = IMAGE_ROTATE_ANGLE # camera is mounted upside down
+                camera.framerate = FRAMERATE
                 stream = io.BytesIO() # stream to store imagery
                 sleep(3) # let the camera warm up for 3 sec
-
-	        log.write("Beginning image capture\n")
+                
+    	        starttime = datetime.datetime.now()
+		log.write("Beginning image capture at " + starttime.strftime("%m/%d/%Y %H:%M:%S") + "\n")
+    		print "Beginning image capture at " + starttime.strftime("%m/%d/%Y %H:%M:%S")
+    
     	        # Capture images continuously at the natural framerate of the camera
-                for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
+                #for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
+                #for foo in camera.capture_continuous(stream, 'bmp', use_video_port=True):
+                for foo in camera.capture_continuous(stream, 'bmp', resize = IMAGE_RES_PROC, use_video_port=True):
+	            GPIO.output(PIN_INFO_LED, GPIO.LOW) # blink on LED for capture
 	            stream.seek(0) # reset to the start of the stream so we can read from it
                     image = Image.open(stream)  # read image from stream as PIL image
 	            frame = np.array(image)  # Trnasform PIL image into a numpy ndarray
                     frame = np.transpose(frame, (1,0,2)) # transpose to (x,y) from (y,x)
-
+		    
 	            # Process image frame and command car
+                    nowtime = datetime.datetime.now()
+                    log.write("***," + "{:5d}".format(loopCount) + ", " + str((nowtime-starttime).total_seconds()) + "\n")
                     loopCount = mainLoop(frame, loopCount, pig, log)
+                    
                     
                     # Save image to file
                     logger.saveImage(frame, IMAGE_SAVENAME, loopCount)
                     
+                    # Print frame timing info
+                    dt = nowtime - lastTime
+    		    print "Processed frame: ", loopCount, ", time: ", \
+    		        (nowtime-starttime).total_seconds(), " s, framerate: ", 1.0/dt.total_seconds()," Hz"
+    		    lastTime = nowtime
+                    
+                    
 	            stream.seek(0)
                     loopCount += 1
                     #sleep(0.0) # optional pause statement
+                    
+                    GPIO.output(PIN_INFO_LED, GPIO.HIGH) # blink off LED for capture
             finally:
 	        log.write("Gracefully closing camera\n")
 	        camera.close()

@@ -142,7 +142,7 @@ def calculateCommand(image, loopCount, log):
         leaderX /= leaderMask.shape[0]
         leaderY /= leaderMask.shape[1]
     
-        log.write(">>>," + "{:5d}".format(loopCount) + ", areaPix, area%, X%, Y%: " + "{:4d}".format(leaderArea) + \
+        log.write(">>>," + "{:5d}".format(loopCount) + ", areaPix, area%, X%, Y%, " + "{:4d}".format(leaderArea) + \
             "{:5.1f}".format(100*leaderFractionalArea) + ", " + \
             "{:3d}".format(np.round(leaderX*100).astype(int)) + ", " + \
             "{:3d}".format(np.round(leaderY*100).astype(int)) + "\n")
