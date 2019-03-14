@@ -17,8 +17,10 @@ VEXT = ".rimg"
 MASK_PATH = "videos/mask_"
 MEXT = ".rimg"
 LOG_PATH = "logs/raspicar.log"
+OUT_PATH = "video"
 
 ZOOM = 4 # zoom factor
+FONTSIZE = 16
 
 # Class for dealing with raspicar logs
 class logReader:
@@ -135,6 +137,7 @@ def process():
     
     # Loop over frames
     i = 0
+    video = []
     while True:
         rimgvpath = VIDEO_PATH + str(i) + VEXT
         rimgmpath = MASK_PATH  + str(i) + MEXT
@@ -146,10 +149,11 @@ def process():
             #plt.imshow(frame)
                 
             # Read the mask frame
-            mask = readRIMG(rimgmpath)
+            mask = readRIMG(rimgmpath) * 255
             mask = np.repeat(mask, 3, axis=2) # make it have 3 colors
             #plt.imshow(mask)
             
+            # Put them together with some area for text at the bottom
             display = np.append(frame, mask, axis = 1).astype(np.uint8)
             infoArea = np.zeros((int(200/ZOOM),display.shape[1],3)).astype(np.uint8)
             display = np.append(display, infoArea, axis = 0)
@@ -158,22 +162,47 @@ def process():
             displayPIL = displayPIL.resize(
                     (displayPIL.width*ZOOM, displayPIL.height*ZOOM), 
                     resample=Image.BICUBIC)
-            ll = [0 + 10, displayPIL.height - 40]
-            ImageDraw.Draw(displayPIL).text(
-                ll,  # xy
-                'Hello world!',  # text
-                'white',  # color
-                font = ImageFont.truetype("fonts/arial.ttf")) # font
-            displayPIL.save("videos/test.png")
             
+            lastT = 0.0
+            if i > 0:
+                lastT = log.time[i-1]
             # Extract info for this frame from the log
+            coln1 = "Frame:        " + str(log.frames[i]) + "\n" \
+                    "Time (s):     " + "%0.2f"% (log.time[i]) + "\n" \
+                    "Frmrate (Hz): " + "%0.2f"% (1.0/(log.time[i]-lastT)) + "\n" \
+                    "Speed:        " + str(log.speed[i]) + "\n" \
+                    "Left Duty:    " + str(log.leftDuty[i]) + "\n" \
+                    "Right Duty:   " + str(log.rightDuty[i]) + "\n" \
+                    "Leader Visbl: " + str(log.tgtVisible[i]) + "\n" + \
+                    "Coasting:     " + str(log.coasting[i])
+            coln2 = "Angle (deg):  " + "%0.2f"% (log.angle[i]) + "\n" \
+                    "Area (%)      " + "%0.2f"% (log.areapct[i]) + "\n" \
+                    "Area (pix):   " + "%0.2f"% (log.areapix[i]) + "\n" \
+                    "Target X:     " + "%0.3f"% (log.tgtCtrXpct[i]/100) + "\n" \
+                    "Target Y:     " + "%0.3f"% (log.tgtCtrYpct[i]/100)
+                                        
             
+            # Add text
+            font = ImageFont.truetype("fonts/cour.ttf", FONTSIZE)
+            p1 = [0 + 10, displayPIL.height - 190]
+            p2 = [displayPIL.width/2 + 10, displayPIL.height - 190]
+            ImageDraw.Draw(displayPIL).text(p1, coln1, 'white', font=font)
+            ImageDraw.Draw(displayPIL).text(p2, coln2, 'white', font=font)
+            
+            # Save image to video
+            #displayPIL.save("videos/test.png")
+            video.append(displayPIL)
             
             # Increment to next number
             i += 1
         except:
             # Read failed
             break
+
+    # Save all images as an animated GIF
+    startTime = 0 # !!!NEED TO FILL THIS WITH THE LOG TIME!!!
+    video[0].save(OUT_PATH+"_"+startTime, 
+         save_all=True, append_images=video[1:], duration=100, loop=0)
 
 # Run the process program
 process()
