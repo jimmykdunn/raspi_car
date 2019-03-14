@@ -20,8 +20,8 @@ TARGET_COLOR_SENSITIVITY = 0.85 #0.5 (good for blue) # fraction of R+G+B that ta
 MIN_LEADER_BRIGHTNESS = 1.0 # relative to image mean
 MIN_LEADER_SIZE = 0.0001
 ANGLE_SCALE = 400.0 #600.0 # steering degrees conversion. 
-AREA_SCALE = 300 # larger = faster transition to full speed when target is not at desired distance
-DESIRED_AREA = 0.10 # fraction of the full image that we want the target to take up
+AREA_SCALE = 30 #300 # larger = faster transition to full speed when target is not at desired distance
+DESIRED_AREA = 0.03 #0.10 # fraction of the full image that we want the target to take up
 AREA_BUFFER = 0.01 # no command will be issued if area is within this much of DESIRED_AREA
 ANGLE_BUFFER = 0.1 # no command will be issued if target center is within this much of image center
 # NOTE: AREA_BUFFER and ANGLE_BUFFER work together - i.e. BOTH must be satisfied for no action
