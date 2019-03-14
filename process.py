@@ -7,9 +7,9 @@
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-
 import matplotlib.pyplot as plt
 import struct
+import datetime
 
 # Paths to all the data
 VIDEO_PATH = "videos/frame_"
@@ -39,6 +39,7 @@ class logReader:
         self.rightDuty = []
         self.coasting = []
         self.tgtVisible = []
+        self.startTime = datetime.datetime.now()
         
         # Read in the log info into a simple text list
         with open(path, "r") as log:
@@ -66,8 +67,19 @@ class logReader:
     def process(self):
         # Loop over lines
         for line in self.rawlines:
+            
             # Split line by commas
             tokens = [token.strip() for token in line.split(',')]
+            
+            if "Beginning image capture at" in line:
+                words = line.split(' ')
+                yy = int(words[4][6:10])
+                mn = int(words[4][0:2])
+                dd = int(words[4][3:5])
+                hh = int(words[5][0:2])
+                mm = int(words[5][3:5])
+                ss = int(words[5][6:8])
+                self.startTime = datetime.datetime(yy,mn,dd,hh,mm,ss)
             
             frame = -1
             if tokens[0] == "***" or tokens[0] == "###" or \
@@ -200,7 +212,7 @@ def process():
             break
 
     # Save all images as an animated GIF
-    startTime = str(0) # !!!NEED TO FILL THIS WITH THE LOG TIME!!!
+    startTime = log.startTime.strftime("%Y%m%d_%H%M%S")
     video[0].save(OUT_PATH+"_"+startTime+".gif", 
          save_all=True, append_images=video[1:], duration=100, loop=0)
 
