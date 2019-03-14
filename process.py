@@ -126,6 +126,7 @@ def readRIMG(path):
         nx = struct.unpack('i', vid.read(4))[0]
         ny = struct.unpack('i', vid.read(4))[0]
         ncolors = struct.unpack('i', vid.read(4))[0]
+    	#print nx, ny, ncolors
         
         # Read image (nx x ny x ncolors)
         b_frame = vid.read(nx * ny * ncolors)
@@ -133,11 +134,11 @@ def readRIMG(path):
         # Convert byte image into something we can display
         frame = np.zeros(nx*ny*ncolors).astype(int)
         for i,byte in enumerate(b_frame):
-            frame[i] = int(byte)
+            frame[i] = struct.unpack('=B',byte)[0]
     
         frame = frame.reshape(nx,ny,ncolors)
         frame = np.rot90(frame,3)
-    
+        
     return frame
 
 
@@ -192,7 +193,7 @@ def process():
                     "Area (pix):   " + "%0.2f"% (log.areapix[i]) + "\n" \
                     "Target X:     " + "%0.3f"% (log.tgtCtrXpct[i]/100) + "\n" \
                     "Target Y:     " + "%0.3f"% (log.tgtCtrYpct[i]/100)
-                                        
+                                  
             
             # Add text
             font = ImageFont.truetype("fonts/cour.ttf", FONTSIZE)
@@ -200,15 +201,16 @@ def process():
             p2 = [displayPIL.width/2 + 10, displayPIL.height - 190]
             ImageDraw.Draw(displayPIL).text(p1, coln1, 'white', font=font)
             ImageDraw.Draw(displayPIL).text(p2, coln2, 'white', font=font)
-            
+                        
             # Save image to video
-            #displayPIL.save("videos/test.png")
+            displayPIL.save("videos/test.png")
             video.append(displayPIL)
             
             # Increment to next number
+            print "Formed frame ", i
             i += 1
         except:
-            # Read failed
+            print "Read completed!"
             break
 
     # Save all images as an animated GIF
