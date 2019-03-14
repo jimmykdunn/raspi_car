@@ -14,11 +14,12 @@ import logger
 
 # Parameters
 DEBUG = False
-TARGET_COLOR = "blue"  # "red", "blue" "green"
-DO_IMOPEN = False # run the imopen operation
-TARGET_COLOR_SENSITIVITY = 0.5 # fraction of R+G+B that target pixels must have
+TARGET_COLOR = "neonyellow"  # "red" "blue" "green" "neonyellow"
+DO_IMOPEN = True # run the imopen operation
+TARGET_COLOR_SENSITIVITY = 0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
+MIN_LEADER_BRIGHTNESS = 1.0 # relative to image mean
 MIN_LEADER_SIZE = 0.0001
-ANGLE_SCALE = 600.0 # steering degrees conversion. 
+ANGLE_SCALE = 400.0 #600.0 # steering degrees conversion. 
 AREA_SCALE = 300 # larger = faster transition to full speed when target is not at desired distance
 DESIRED_AREA = 0.10 # fraction of the full image that we want the target to take up
 AREA_BUFFER = 0.01 # no command will be issued if area is within this much of DESIRED_AREA
@@ -43,9 +44,13 @@ def findLeader(image):
 	ballColorFraction = image[:,:,1].astype(float) / np.sum(image.astype(float), axis=2)
     elif TARGET_COLOR == "blue":
 	ballColorFraction = image[:,:,2].astype(float) / np.sum(image.astype(float), axis=2)
+    elif TARGET_COLOR == "neonyellow":
+        ballColorFraction = (image[:,:,0].astype(float)+image[:,:,1].astype(float)) / np.sum(image.astype(float), axis=2)
     else:
 	print("INVALID TARGET COLOR: ", TARGET_COLOR)
-    leaderMask = ballColorFraction > TARGET_COLOR_SENSITIVITY
+    image_brightness = np.sum(image.astype(float), axis=2) / 3 / np.mean(image.astype(float))
+    leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY) * \
+    	         (image_brightness > MIN_LEADER_BRIGHTNESS)
 
     leaderMask = np.reshape(leaderMask, [image.shape[0], image.shape[1]])
 

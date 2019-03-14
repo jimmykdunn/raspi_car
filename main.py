@@ -50,6 +50,7 @@ PIN_RT_POL_FWD = 23 #16 # Pin for commanding drive direction (right wheels)
 PIN_RT_POL_BWD = 24 #18 # Pin for commaiding drive direction (right wheels)
 PIN_LT_LED = 4 #19 # Pin for LED indicating left turn commanded
 PIN_RT_LED = 9 #21 # Pin for LED indicating right turn commanded
+PIN_RESET_CONTROL = 21 # Pin connected to button for resetting control SW
 
 # Inital setup script
 def setup(log):
@@ -71,6 +72,7 @@ def setup(log):
     GPIO.setup(PIN_RT_POL_BWD, GPIO.OUT, initial=GPIO.LOW)
     GPIO.setup(PIN_LT_LED, GPIO.OUT, initial=GPIO.LOW)
     GPIO.setup(PIN_RT_LED, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(PIN_RESET_CONTROL, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
     # Set up pigpio daemon for PWM
     log.write("Setting up pigpio library for PWM commands\n")
@@ -378,6 +380,10 @@ def main():
 	            stream.seek(0)
                     loopCount += 1
                     #sleep(0.0) # optional pause statement
+                    
+                    # Kill process if reset button is pressed
+                    if GPIO.input(PIN_RESET_CONTROL) == False:
+                        break
                     
                     GPIO.output(PIN_INFO_LED, GPIO.HIGH) # blink off LED for capture
             finally:

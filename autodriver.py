@@ -17,7 +17,7 @@ import subprocess
 import signal
 import os
 
-PIN_STATUS_LED = 16 # Pin for software active LED !!!CHANGE ME!!!
+PIN_STATUS_LED = 16 # Pin for software active LED
 PIN_RESET_RPI = 14 # Pin connected to button for resetting the raspberry pi
 PIN_RESET_CONTROL = 21 # Pin connected to button for resetting control SW
 
@@ -79,8 +79,9 @@ def startController():
     
     
 # Executes a restart of the controller program
-def resetController():         
-    killController()
+def resetController(): 
+    sleep(1.0) # sleep to avoid race condition      
+    killController() # should happen already in the controller, redo to make sure
     sleep(2.0) # sleep to give time for the kill action to take
     startController()
 
@@ -107,17 +108,11 @@ def main():
         # True (High) indicates button has been pressed. Execute shutdown
         if GPIO.input(PIN_RESET_RPI) == False:
             softShutdown()
-            #GPIO.output(PIN_STATUS_LED, GPIO.LOW)
-            #sleep(1.0)
-            #GPIO.output(PIN_STATUS_LED, GPIO.HIGH)
             
         # True (High) indicates button has been pressed. Restart control
         # program.
         if GPIO.input(PIN_RESET_CONTROL) == False:
-            resetController()   
-            #GPIO.output(PIN_STATUS_LED, GPIO.LOW)
-            #sleep(1.0)
-            #GPIO.output(PIN_STATUS_LED, GPIO.HIGH)         
+            resetController()        
             
         sleep(0.1) # sleep to prevent overexecution
     # end while True
