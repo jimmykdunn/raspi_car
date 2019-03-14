@@ -15,7 +15,7 @@ import logger
 # Parameters
 DEBUG = False
 TARGET_COLOR = "neonyellow"  # "red" "blue" "green" "neonyellow"
-DO_IMOPEN = True # run the imopen operation
+DO_IMOPEN = False # run the imopen operation
 TARGET_COLOR_SENSITIVITY = 0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
 MIN_LEADER_BRIGHTNESS = 1.0 # relative to image mean
 MIN_LEADER_SIZE = 0.0001
