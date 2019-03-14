@@ -73,8 +73,9 @@ def killController():
 def startController():
     # Start a single instance of the controller process
     print("execute main.py")
+    sleep(0.1)
     stuff = os.spawnl(os.P_NOWAIT, '/usr/bin/python', 'python', '/home/pi/car/raspi_car/main.py')
-    print(stuff)
+    #print(stuff)
     print("started main.py")
     
     
@@ -103,16 +104,43 @@ def main():
 	GPIO.output(PIN_STATUS_LED, GPIO.HIGH)
     	sleep(0.1)
     
+    controlSWOn = False
+    
     # Loop and don't ever exit
     while True:
         # True (High) indicates button has been pressed. Execute shutdown
         if GPIO.input(PIN_RESET_RPI) == False:
             softShutdown()
             
-        # True (High) indicates button has been pressed. Restart control
-        # program.
+        # True (High) indicates button has been pressed. Kill/start control.
         if GPIO.input(PIN_RESET_CONTROL) == False:
-            resetController()        
+            if not controlSWOn:
+                startController() 
+                
+                # Blink once for confirmation
+	        GPIO.output(PIN_STATUS_LED, GPIO.LOW)
+	        sleep(0.2)
+	        GPIO.output(PIN_STATUS_LED, GPIO.HIGH)
+	        
+	        sleep(1.0) # in case button is pressed for too long
+	        
+	        controlSWOn = True
+	    else:
+	        sleep(1.0) # avoid race condition with controller itself
+	        killController() # likely duplicate with controller kill
+	        
+	        # Blink twice for confirmation
+	        GPIO.output(PIN_STATUS_LED, GPIO.LOW)
+	        sleep(0.2)
+	        GPIO.output(PIN_STATUS_LED, GPIO.HIGH)
+	        sleep(0.2)
+	        GPIO.output(PIN_STATUS_LED, GPIO.LOW)
+	        sleep(0.2)
+	        GPIO.output(PIN_STATUS_LED, GPIO.HIGH)
+	        sleep(1.0)
+	        
+	        controlSWOn = False
+	        
             
         sleep(0.1) # sleep to prevent overexecution
     # end while True
