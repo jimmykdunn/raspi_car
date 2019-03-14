@@ -146,6 +146,29 @@ def readRIMG(path):
     return frame
 
 
+# Makes an arrow showing the desired direction of travel based on drive duty.
+def drawPowerBars(xy, leftDuty, rightDuty):
+    fullbox = np.zeros(xy).astype(np.uint8)
+    strip = np.zeros(int(xy[1]/2)).astype(np.uint8)
+    
+    strip_x = (np.arange(xy[1]/2)-xy[1]/4)/(xy[1]/4)
+    strip[(strip_x < 0) * (strip_x > -leftDuty)] = 255
+    strip[(strip_x > 0) * (strip_x < rightDuty)] = 255
+    
+    #if leftDuty > 0 and rightDuty > 0:
+       # box_x = np.reshape(np.repeat(np.arange(box.shape[0]), 
+       #         box.shape[1],axis=0),[box.shape[0],box.shape[1]]) - box.shape[0]/2
+       # box_y = np.reshape(np.repeat(np.arange(box.shape[1]),
+       #         box.shape[0],axis=0),[box.shape[1],box.shape[0]]).T - box.shape[1]/2
+       # box[np.abs((box_y/box_x) - (rightDuty-leftDuty)) < 0.3] = 255
+    x0 = int(1.0*xy[1]/2.0)
+    y0 = int(xy[0]*0.28)
+    for i in range(xy[2]):
+        fullbox[y0,x0:,i] = strip
+    
+    return fullbox
+    
+
 # Main processing function
 def process():
     # Read and process the log file
@@ -173,6 +196,7 @@ def process():
             # Put them together with some area for text at the bottom
             display = np.append(frame, mask, axis = 1).astype(np.uint8)
             infoArea = np.zeros((int(200/ZOOM),display.shape[1],3)).astype(np.uint8)
+            infoArea += drawPowerBars(infoArea.shape, log.leftDuty[i], log.rightDuty[i])
             display = np.append(display, infoArea, axis = 0)
             #plt.imshow(display)
             displayPIL = Image.fromarray(display, 'RGB')
@@ -184,7 +208,8 @@ def process():
             if i > 0:
                 lastT = log.time[i-1]
             # Extract info for this frame from the log
-            coln1 = "Frame:        " + str(log.frames[i]) + "\n" \
+            coln1 = "         CAMERA VIEW\n\n" + \
+                    "Frame:        " + str(log.frames[i]) + "\n" \
                     "Time (s):     " + "%0.2f"% (log.time[i]) + "\n" \
                     "Frmrate (Hz): " + "%0.2f"% (1.0/(log.time[i]-lastT)) + "\n" \
                     "Speed:        " + str(log.speed[i]) + "\n" \
@@ -192,7 +217,10 @@ def process():
                     "Right Duty:   " + str(log.rightDuty[i]) + "\n" \
                     "Leader Visbl: " + str(log.tgtVisible[i]) + "\n" + \
                     "Coasting:     " + str(log.coasting[i])
-            coln2 = "Angle (deg):  " + "%0.2f"% (log.angle[i]) + "\n" \
+            coln2 = "         TARGET MASK\n\n\n" + \
+                    "  RIGHT MOTOR     LEFT MOTOR\n" + \
+                    "     POWER           POWER\n" + \
+                    "Angle (deg):  " + "%0.2f"% (log.angle[i]) + "\n" \
                     "Area (%)      " + "%0.2f"% (log.areapct[i]) + "\n" \
                     "Area (pix):   " + "%0.2f"% (log.areapix[i]) + "\n" \
                     "Target X:     " + "%0.3f"% (log.tgtCtrXpct[i]/100) + "\n" \
