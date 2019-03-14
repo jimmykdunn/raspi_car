@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 import struct
 import datetime
+import platform
 
 # Paths to all the data
 VIDEO_PATH = "videos/frame_"
@@ -134,7 +135,10 @@ def readRIMG(path):
         # Convert byte image into something we can display
         frame = np.zeros(nx*ny*ncolors).astype(int)
         for i,byte in enumerate(b_frame):
-            frame[i] = struct.unpack('=B',byte)[0]
+            if "Windows" in platform.system():
+                frame[i] = int(byte)
+            else:
+                frame[i] = struct.unpack('=B',byte)[0]
     
         frame = frame.reshape(nx,ny,ncolors)
         frame = np.rot90(frame,3)
@@ -207,10 +211,10 @@ def process():
             video.append(displayPIL)
             
             # Increment to next number
-            print "Formed frame ", i
+            print("Formed frame ", i)
             i += 1
         except:
-            print "Read completed!"
+            print("Read completed!")
             break
 
     # Save all images as an animated GIF
