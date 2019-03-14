@@ -314,10 +314,10 @@ def mainLoop(image, loopCount, pig, log):
 def main():
 
     # Remove old videos and logs
-    oldVideos = glob.glob("videos/*")
+    oldVideos = glob.glob("videos/*.rimg")
     for im in oldVideos:
     	os.remove(im)
-    oldLogs = glob.glob("logs/*")
+    oldLogs = glob.glob("logs/*.log")
     for logfile in oldLogs:
     	os.remove(logfile)
     	
