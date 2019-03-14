@@ -200,8 +200,8 @@ def process():
             break
 
     # Save all images as an animated GIF
-    startTime = 0 # !!!NEED TO FILL THIS WITH THE LOG TIME!!!
-    video[0].save(OUT_PATH+"_"+startTime, 
+    startTime = str(0) # !!!NEED TO FILL THIS WITH THE LOG TIME!!!
+    video[0].save(OUT_PATH+"_"+startTime+".gif", 
          save_all=True, append_images=video[1:], duration=100, loop=0)
 
 # Run the process program
