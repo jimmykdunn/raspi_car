@@ -17,7 +17,6 @@ import atexit
 import pigpio
 import picamera
 import picamera.array
-import user_control
 import seeker
 import io
 from PIL import Image
