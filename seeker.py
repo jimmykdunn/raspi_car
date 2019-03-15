@@ -11,6 +11,8 @@ import scipy.ndimage.morphology as spm
 #import scipy.misc
 import datetime
 import logger
+import matplotlib.colors as mpc
+from PIL import Image
 
 # Parameters
 DEBUG = False
@@ -27,30 +29,103 @@ ANGLE_BUFFER = 0.1 # no command will be issued if target center is within this m
 # NOTE: AREA_BUFFER and ANGLE_BUFFER work together - i.e. BOTH must be satisfied for no action
 # to be taken.
 COAST_TIME = 4.0 # Seconds car is allowed to coast last command before stopping when target not visible
+MIN_COAST_ANGLE = 60.0 # smallest allowable steer angle for a coast
+
+
+# HSV Colorspace analysis parameters
+# See http://colorizer.org/ for examples
+DO_HSV = True
+MIN_HUE = 40.0
+MAX_HUE = 80.0
+MIN_SAT = 0.85
+MAX_SAT = 1.0
+MIN_VAL = 0.4
+MAX_VAL = 0.95
 
 # Global variables
 timeTgtLastVisible = datetime.datetime(2019,01,01,00,00,01)
 prevValidAngle = 0.0
 prevValidDuty = 0.0
 
+# RGB to HSV colorspace conversion
+# Adptded from formulae on www.rapidtables.com/convert/color/rgb-to-hsv.html
+def rgb2hsv(rgb):
+    r, g, b = rgb[:,:,0]/255.0, rgb[:,:,1]/255.0, rgb[:,:,2]/255.0
+    r, g, b = r.flatten(), g.flatten(), b.flatten()
+    rgbf = np.reshape(rgb,[rgb.shape[0]*rgb.shape[1],rgb.shape[2]])
+    cmax = np.amax(rgbf,axis=1)/255.0
+    cmin = np.amin(rgbf,axis=1)/255.0
+    delta = cmax-cmin
+    h = np.zeros((rgb.shape[0]*rgb.shape[1]))
+    s = np.zeros((rgb.shape[0]*rgb.shape[1]))
+    v = np.zeros((rgb.shape[0]*rgb.shape[1]))
+    if np.any(delta == 0):
+        h[delta == 0] = 0
+    if np.any(cmax == r):
+        h[cmax == r] = (60 * (((g[cmax == r]-b[cmax == r])/delta[cmax == r]) % 6))
+    if np.any(cmax == g):
+        h[cmax == g] = (60 * (((b[cmax == g]-r[cmax == g])/delta[cmax == g]) + 2))
+    if np.any(cmax == b):
+        h[cmax == b] = (60 * (((r[cmax == b]-g[cmax == b])/delta[cmax == b]) + 4))
+    if np.any(cmax == 0):
+        s[cmax == 0] = 0       
+    if np.any(cmax != 0):
+        s[cmax != 0] = delta[cmax != 0]/cmax[cmax != 0]
+    v = cmax
+    h = h.reshape([rgb.shape[0],rgb.shape[1]])
+    s = s.reshape([rgb.shape[0],rgb.shape[1]])
+    v = v.reshape([rgb.shape[0],rgb.shape[1]]) 
+    hsv = np.stack([h,s,v], axis=2)
+    return hsv
+    
+
 # Finds all pixels with the color of the leader ball
 def findLeader(image):
 
-    # Threshold pixels on color (needs to be more complicated than this)
-    ballColorFraction = -1.0
-    if TARGET_COLOR == "red":
-    	ballColorFraction = image[:,:,0].astype(float) / np.sum(image.astype(float), axis=2)
-    elif TARGET_COLOR == "green":
-	ballColorFraction = image[:,:,1].astype(float) / np.sum(image.astype(float), axis=2)
-    elif TARGET_COLOR == "blue":
-	ballColorFraction = image[:,:,2].astype(float) / np.sum(image.astype(float), axis=2)
-    elif TARGET_COLOR == "neonyellow":
-        ballColorFraction = (image[:,:,0].astype(float)+image[:,:,1].astype(float)) / np.sum(image.astype(float), axis=2)
-    else:
-	print("INVALID TARGET COLOR: ", TARGET_COLOR)
-    image_brightness = np.sum(image.astype(float), axis=2) / 3 / np.mean(image.astype(float))
-    leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY) * \
+    leaderMask = 0
+    if DO_HSV:
+    	#print "Min img red: ", np.amin(image[:,:,0])
+    	#print "Min img red: ", np.amax(image[:,:,0])
+    	#print "Min img grn: ", np.amin(image[:,:,1])
+    	#print "Min img grn: ", np.amax(image[:,:,1])
+    	#print "Min img blu: ", np.amin(image[:,:,2])
+    	#print "Min img blu: ", np.amax(image[:,:,2])
+    	#print "Image shape: ", image.shape
+    	hsvImage = rgb2hsv(image)
+    	#print "Min img hue: ", np.amin(hsvImage[:,:,0])
+    	#print "Max img hue: ", np.amax(hsvImage[:,:,0])
+    	#print "Min img sat: ", np.amin(hsvImage[:,:,1])
+    	#print "Max img sat: ", np.amax(hsvImage[:,:,1])
+    	#print "Min img val: ", np.amin(hsvImage[:,:,2])
+    	#print "Max img val: ", np.amax(hsvImage[:,:,2])
+    	if TARGET_COLOR == "neonyellow":
+            leaderMask   = (hsvImage[:,:,0] >= MIN_HUE) * \
+                           (hsvImage[:,:,0] <= MAX_HUE) * \
+                           (hsvImage[:,:,1] >= MIN_SAT) * \
+                           (hsvImage[:,:,1] <= MAX_SAT) * \
+                           (hsvImage[:,:,2] >= MIN_VAL) * \
+                           (hsvImage[:,:,2] <= MAX_VAL)
+    	else:
+	    print("INVALID TARGET COLOR: ", TARGET_COLOR, " for HSV space")
+    	    
+    else:    
+	# Threshold pixels on RGB color (needs to be more complicated than this)
+	ballColorFraction = -1.0
+	if TARGET_COLOR == "red":
+	    ballColorFraction = image[:,:,0].astype(float) / np.sum(image.astype(float), axis=2)
+	elif TARGET_COLOR == "green":
+	    ballColorFraction = image[:,:,1].astype(float) / np.sum(image.astype(float), axis=2)
+	elif TARGET_COLOR == "blue":
+	    ballColorFraction = image[:,:,2].astype(float) / np.sum(image.astype(float), axis=2)
+	elif TARGET_COLOR == "neonyellow":
+	    ballColorFraction = (image[:,:,0].astype(float)+image[:,:,1].astype(float)) / np.sum(image.astype(float), axis=2)
+	else:
+	    print("INVALID TARGET COLOR: ", TARGET_COLOR)
+	    
+    	image_brightness = np.sum(image.astype(float), axis=2) / 3 / np.mean(image.astype(float))
+    	leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY) * \
     	         (image_brightness > MIN_LEADER_BRIGHTNESS)
+    # end else (RGB)
 
     leaderMask = np.reshape(leaderMask, [image.shape[0], image.shape[1]])
 
@@ -128,11 +203,12 @@ def calculateCommand(image, loopCount, log):
     if leaderFractionalArea < MIN_LEADER_SIZE:
         
         # Target is not (easily) visible. Repeat last command, so long as
-        # we have not been without target visibility in more than N sec
+        # we have not been without target visibility in more than N sec, and
+        # so long as the command is a turn (don't coast forward too much!)
         currentTime = datetime.datetime.now()
         dt = (currentTime - timeTgtLastVisible).total_seconds()
 	log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Coasted for " + str(dt) + " seconds\n")
-        if COAST_TIME >= dt:
+        if COAST_TIME >= dt and np.abs(prevValidAngle) > MIN_COAST_ANGLE:
 	    #print("    Prev angle: ", prevValidAngle)
 	    #print("    Prev duty: ", prevValidDuty)
             angle = prevValidAngle
