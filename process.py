@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import struct
 import datetime
 import platform
+import scipy.ndimage as spnd
 
 
 # Paths to all the data
@@ -202,6 +203,45 @@ def rgb2hsv(rgb):
     v = v.reshape([rgb.shape[0],rgb.shape[1]]) 
     hsv = np.stack([h,s,v], axis=2)
     return hsv
+
+############################
+# NEW PARAMETERS
+IDEAL_HSV = [55, 0.95, 0.6]
+HSV_SIGMA = [5, 0.1, 0.2]
+BALL_THRESH = 0.5 # min probability a pixel can have and be declared ball
+MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of image size
+    
+# Find the probability of the ball being at each pixel. Then find the peak
+# probabiility pixel and declare it as being in the ball if it is above 
+# threshold.  Look for the rest of the ball nearby to determine area.  The 
+# idea here is that the "most yellow" thing in the frame should be the ball.
+# Thus the best way to find it is finding the most yellow pixel and looking
+# around it.
+def findTargetProb(hsvFrame):
+    nx = hsvFrame.shape[1]
+    ny = hsvFrame.shape[0]
+    delta = hsvFrame - IDEAL_HSV
+    delta[delta > 180] = 360 - delta[delta > 180] # will only change hue. Sat and val are 0 to 1
+    probBall = np.exp(-(np.sum((delta/HSV_SIGMA)**2,axis=2)))
+    probBall *= (hsvFrame[:,:,0] > 40) * (hsvFrame[:,:,0] < 70) # MUST be yellow hue
+    
+    probBallSm = spnd.gaussian_filter(probBall, 4) # gaussian smoothing filter
+    peakXY = np.unravel_index(np.argmax(probBallSm, axis=None), probBall.shape)
+    
+    X = np.reshape(np.tile(np.arange(nx), ny),[ny,nx])
+    Y = np.reshape(np.tile(np.arange(ny), nx),[nx,ny]).T
+    
+    # Can be slow, maybe do a box instead?
+    distToPeak2 = (peakXY[0] - Y)**2 + (peakXY[1] - X)**2
+    mask = (distToPeak2 < (MAX_BALL_SIZE * (nx+ny)/2)**2) * \
+           (probBall >= BALL_THRESH)
+           
+    # If peak pixel is less than threshold, declare ball not present
+    if np.amax(probBall) < BALL_THRESH:
+        mask[:,:] = False
+    
+    return mask, probBall
+
 ############################
 
 
@@ -224,27 +264,38 @@ def process():
             # Read the video frame
             frame = readRIMG(rimgvpath)
             #plt.imshow(frame)
-            #hsvFrame = rgb2hsv(frame)
-            #
-            #MIN_HUE = 40.0
-            #MAX_HUE = 80.0
-            #MIN_SAT = 0.85
-            #MAX_SAT = 1.0
-            #MIN_VAL = 0.4
-            #MAX_VAL = 0.95
-            #hsvmask = (hsvFrame[:,:,0] >= MIN_HUE) * \
-            #          (hsvFrame[:,:,0] <= MAX_HUE) * \
-            #          (hsvFrame[:,:,1] >= MIN_SAT) * \
-            #          (hsvFrame[:,:,1] <= MAX_SAT) * \
-            #          (hsvFrame[:,:,2] >= MIN_VAL) * \
-            #          (hsvFrame[:,:,2] <= MAX_VAL)
-            #plt.imshow(hsvmask)
-            #hsvFrame = mpc.rgb_to_hsv(frame/255)
+            
+            
+            
+            # HSV probability masking for testing
+            hsvFrame = rgb2hsv(frame)
+            hsvMask, probBall = findTargetProb(hsvFrame)
+            hsvMask3 = 255*np.repeat(np.reshape(hsvMask,[hsvMask.shape[0],hsvMask.shape[1],1]), 3, axis=2)
+            probBall3 = 255*np.repeat(np.reshape(probBall,[probBall.shape[0],probBall.shape[1],1]), 3, axis=2)
+            h3view = np.append(np.append(frame,hsvMask3,axis=1),probBall3,axis=1)
+            #plt.imshow(h3view)
+            #plt.imshow(hsvMask)
+            #plt.imshow(probBall)
+            plt.imshow(frame)
+            
+            
                 
             # Read the mask frame
             mask = readRIMG(rimgmpath) * 255
+            
+            
+            hsvMask = 255*np.reshape(hsvMask, [hsvMask.shape[0], hsvMask.shape[1], 1])#!!!TEMPORARY!!!
+            mask = hsvMask
+            
             mask = np.repeat(mask, 3, axis=2) # make it have 3 colors
             #plt.imshow(mask)
+            
+            
+            
+            
+            
+            
+            
             
             # Put them together with some area for text at the bottom
             display = np.append(frame, mask, axis = 1).astype(np.uint8)
