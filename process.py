@@ -12,6 +12,7 @@ import struct
 import datetime
 import platform
 
+
 # Paths to all the data
 VIDEO_PATH = "videos/frame_"
 VEXT = ".rimg"
@@ -169,6 +170,42 @@ def drawPowerBars(xy, leftDuty, rightDuty):
     return fullbox
     
 
+
+
+###########################
+# Adptded from formulae on www.rapidtables.com/convert/color/rgb-to-hsv.html
+def rgb2hsv(rgb):
+    r, g, b = rgb[:,:,0]/255.0, rgb[:,:,1]/255.0, rgb[:,:,2]/255.0
+    r, g, b = r.flatten(), g.flatten(), b.flatten()
+    rgbf = np.reshape(rgb,[rgb.shape[0]*rgb.shape[1],rgb.shape[2]])
+    cmax = np.amax(rgbf,axis=1)/255.0
+    cmin = np.amin(rgbf,axis=1)/255.0
+    delta = cmax-cmin
+    h = np.zeros((rgb.shape[0]*rgb.shape[1]))
+    s = np.zeros((rgb.shape[0]*rgb.shape[1]))
+    v = np.zeros((rgb.shape[0]*rgb.shape[1]))
+    if np.any(delta == 0):
+        h[delta == 0] = 0
+    if np.any(cmax == r):
+        h[cmax == r] = (60 * (((g[cmax == r]-b[cmax == r])/delta[cmax == r]) % 6))
+    if np.any(cmax == g):
+        h[cmax == g] = (60 * (((b[cmax == g]-r[cmax == g])/delta[cmax == g]) + 2))
+    if np.any(cmax == b):
+        h[cmax == b] = (60 * (((r[cmax == b]-g[cmax == b])/delta[cmax == b]) + 4))
+    if np.any(cmax == 0):
+        s[cmax == 0] = 0       
+    if np.any(cmax != 0):
+        s[cmax != 0] = delta[cmax != 0]/cmax[cmax != 0]
+    v = cmax
+    h = h.reshape([rgb.shape[0],rgb.shape[1]])
+    s = s.reshape([rgb.shape[0],rgb.shape[1]])
+    v = v.reshape([rgb.shape[0],rgb.shape[1]]) 
+    hsv = np.stack([h,s,v], axis=2)
+    return hsv
+############################
+
+
+
 # Main processing function
 def process():
     # Read and process the log file
@@ -187,6 +224,22 @@ def process():
             # Read the video frame
             frame = readRIMG(rimgvpath)
             #plt.imshow(frame)
+            #hsvFrame = rgb2hsv(frame)
+            #
+            #MIN_HUE = 40.0
+            #MAX_HUE = 80.0
+            #MIN_SAT = 0.85
+            #MAX_SAT = 1.0
+            #MIN_VAL = 0.4
+            #MAX_VAL = 0.95
+            #hsvmask = (hsvFrame[:,:,0] >= MIN_HUE) * \
+            #          (hsvFrame[:,:,0] <= MAX_HUE) * \
+            #          (hsvFrame[:,:,1] >= MIN_SAT) * \
+            #          (hsvFrame[:,:,1] <= MAX_SAT) * \
+            #          (hsvFrame[:,:,2] >= MIN_VAL) * \
+            #          (hsvFrame[:,:,2] <= MAX_VAL)
+            #plt.imshow(hsvmask)
+            #hsvFrame = mpc.rgb_to_hsv(frame/255)
                 
             # Read the mask frame
             mask = readRIMG(rimgmpath) * 255
@@ -198,7 +251,7 @@ def process():
             infoArea = np.zeros((int(200/ZOOM),display.shape[1],3)).astype(np.uint8)
             infoArea += drawPowerBars(infoArea.shape, log.leftDuty[i], log.rightDuty[i])
             display = np.append(display, infoArea, axis = 0)
-            #plt.imshow(display)
+            #plt.imshow(display) 
             displayPIL = Image.fromarray(display, 'RGB')
             displayPIL = displayPIL.resize(
                     (displayPIL.width*ZOOM, displayPIL.height*ZOOM), 
