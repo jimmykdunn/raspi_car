@@ -36,10 +36,10 @@ MIN_COAST_ANGLE = 60.0 # smallest allowable steer angle for a coast
 # See http://colorizer.org/ for examples
 DO_HSV = True
 MIN_HUE = 40.0
-MAX_HUE = 80.0
+MAX_HUE = 70.0
 MIN_SAT = 0.85
 MAX_SAT = 1.0
-MIN_VAL = 0.4
+MIN_VAL = 0.5
 MAX_VAL = 0.95
 
 # Global variables
