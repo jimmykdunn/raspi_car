@@ -185,7 +185,8 @@ def rgb2hsv(rgb):
     h = np.zeros((rgb.shape[0]*rgb.shape[1]))
     s = np.zeros((rgb.shape[0]*rgb.shape[1]))
     v = np.zeros((rgb.shape[0]*rgb.shape[1]))
-    if np.any(delta == 0):
+    #if np.any(delta == 0):
+    if np.any(delta <= 1e-4):
         h[delta == 0] = 0
     if np.any(cmax == r):
         h[cmax == r] = (60 * (((g[cmax == r]-b[cmax == r])/delta[cmax == r]) % 6))
@@ -198,17 +199,29 @@ def rgb2hsv(rgb):
     if np.any(cmax != 0):
         s[cmax != 0] = delta[cmax != 0]/cmax[cmax != 0]
     v = cmax
+    
+    # Eliminate infinities
+    h[np.isfinite(h) == False] = 0.0
+    s[np.isfinite(s) == False] = 0.0
+    v[np.isfinite(v) == False] = 0.0 
+    
     h = h.reshape([rgb.shape[0],rgb.shape[1]])
     s = s.reshape([rgb.shape[0],rgb.shape[1]])
     v = v.reshape([rgb.shape[0],rgb.shape[1]]) 
     hsv = np.stack([h,s,v], axis=2)
+    
     return hsv
 
 ############################
 # NEW PARAMETERS
+#IDEAL_HSV = [55, 0.95, 0.6] # best yet
+#HSV_SIGMA = [5, 0.1, 0.2] # best yet
+#HUE_RANGE = 15 # best yet
+#BALL_THRESH = 0.1 # best yet
 IDEAL_HSV = [55, 0.95, 0.6]
 HSV_SIGMA = [5, 0.1, 0.2]
-BALL_THRESH = 0.5 # min probability a pixel can have and be declared ball
+HUE_RANGE = 15
+BALL_THRESH = 0.1 # min probability a pixel can have and be declared ball
 MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of image size
     
 # Find the probability of the ball being at each pixel. Then find the peak
@@ -223,9 +236,10 @@ def findTargetProb(hsvFrame):
     delta = hsvFrame - IDEAL_HSV
     delta[delta > 180] = 360 - delta[delta > 180] # will only change hue. Sat and val are 0 to 1
     probBall = np.exp(-(np.sum((delta/HSV_SIGMA)**2,axis=2)))
-    probBall *= (hsvFrame[:,:,0] > 40) * (hsvFrame[:,:,0] < 70) # MUST be yellow hue
+    probBall *= (hsvFrame[:,:,0] > (IDEAL_HSV[0] - HUE_RANGE)) * (hsvFrame[:,:,0] < (IDEAL_HSV[0] + HUE_RANGE)) # MUST be correct hue
     
     probBallSm = spnd.gaussian_filter(probBall, 4) # gaussian smoothing filter
+    #probBallSm = probBall
     peakXY = np.unravel_index(np.argmax(probBallSm, axis=None), probBall.shape)
     
     X = np.reshape(np.tile(np.arange(nx), ny),[ny,nx])
@@ -239,6 +253,7 @@ def findTargetProb(hsvFrame):
     # If peak pixel is less than threshold, declare ball not present
     if np.amax(probBall) < BALL_THRESH:
         mask[:,:] = False
+    
     
     return mask, probBall
 
@@ -265,37 +280,26 @@ def process():
             frame = readRIMG(rimgvpath)
             #plt.imshow(frame)
             
-            
-            
             # HSV probability masking for testing
-            hsvFrame = rgb2hsv(frame)
-            hsvMask, probBall = findTargetProb(hsvFrame)
-            hsvMask3 = 255*np.repeat(np.reshape(hsvMask,[hsvMask.shape[0],hsvMask.shape[1],1]), 3, axis=2)
-            probBall3 = 255*np.repeat(np.reshape(probBall,[probBall.shape[0],probBall.shape[1],1]), 3, axis=2)
-            h3view = np.append(np.append(frame,hsvMask3,axis=1),probBall3,axis=1)
+            #hsvFrame = rgb2hsv(frame)
+            #hsvMask, probBall = findTargetProb(hsvFrame)
+            #hsvMask3 = 255*np.repeat(np.reshape(hsvMask,[hsvMask.shape[0],hsvMask.shape[1],1]), 3, axis=2)
+            #probBall3 = 255*np.repeat(np.reshape(probBall,[probBall.shape[0],probBall.shape[1],1]), 3, axis=2)
+            #h3view = np.append(np.append(frame,hsvMask3,axis=1),probBall3,axis=1)
             #plt.imshow(h3view)
             #plt.imshow(hsvMask)
             #plt.imshow(probBall)
-            plt.imshow(frame)
-            
-            
-                
+            #plt.imshow(frame)
+                           
             # Read the mask frame
             mask = readRIMG(rimgmpath) * 255
             
-            
-            hsvMask = 255*np.reshape(hsvMask, [hsvMask.shape[0], hsvMask.shape[1], 1])#!!!TEMPORARY!!!
-            mask = hsvMask
+            # Use for debugging only!! Post-processing test of algorithm
+            #hsvMask = 255*np.reshape(hsvMask, [hsvMask.shape[0], hsvMask.shape[1], 1])#!!!TEMPORARY!!!
+            #mask = hsvMask
             
             mask = np.repeat(mask, 3, axis=2) # make it have 3 colors
             #plt.imshow(mask)
-            
-            
-            
-            
-            
-            
-            
             
             # Put them together with some area for text at the bottom
             display = np.append(frame, mask, axis = 1).astype(np.uint8)

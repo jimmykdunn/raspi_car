@@ -35,19 +35,19 @@ MIN_COAST_ANGLE = 60.0 # smallest allowable steer angle for a coast
 # HSV Colorspace analysis parameters
 # See http://colorizer.org/ for examples
 DO_HSV = True
-MIN_HUE = 40.0
-MAX_HUE = 70.0
-MIN_SAT = 0.85
-MAX_SAT = 1.0
-MIN_VAL = 0.5
-MAX_VAL = 0.95
+IDEAL_HSV = [55, 0.95, 0.6]
+HSV_SIGMA = [5, 0.1, 0.2]
+HUE_RANGE = 15
+BALL_THRESH = 0.1 # min probability a pixel can have and be declared ball
+MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of image size
+
 
 # Global variables
 timeTgtLastVisible = datetime.datetime(2019,01,01,00,00,01)
 prevValidAngle = 0.0
 prevValidDuty = 0.0
 
-# RGB to HSV colorspace conversion
+###########################
 # Adptded from formulae on www.rapidtables.com/convert/color/rgb-to-hsv.html
 def rgb2hsv(rgb):
     r, g, b = rgb[:,:,0]/255.0, rgb[:,:,1]/255.0, rgb[:,:,2]/255.0
@@ -59,7 +59,8 @@ def rgb2hsv(rgb):
     h = np.zeros((rgb.shape[0]*rgb.shape[1]))
     s = np.zeros((rgb.shape[0]*rgb.shape[1]))
     v = np.zeros((rgb.shape[0]*rgb.shape[1]))
-    if np.any(delta == 0):
+    #if np.any(delta == 0):
+    if np.any(delta <= 1e-4):
         h[delta == 0] = 0
     if np.any(cmax == r):
         h[cmax == r] = (60 * (((g[cmax == r]-b[cmax == r])/delta[cmax == r]) % 6))
@@ -72,41 +73,67 @@ def rgb2hsv(rgb):
     if np.any(cmax != 0):
         s[cmax != 0] = delta[cmax != 0]/cmax[cmax != 0]
     v = cmax
+    
+    # Eliminate infinities
+    h[np.isfinite(h) == False] = 0.0
+    s[np.isfinite(s) == False] = 0.0
+    v[np.isfinite(v) == False] = 0.0 
+    
     h = h.reshape([rgb.shape[0],rgb.shape[1]])
     s = s.reshape([rgb.shape[0],rgb.shape[1]])
     v = v.reshape([rgb.shape[0],rgb.shape[1]]) 
     hsv = np.stack([h,s,v], axis=2)
-    return hsv
     
+    return hsv
+
+
+# Find the probability of the ball being at each pixel. Then find the peak
+# probabiility pixel and declare it as being in the ball if it is above 
+# threshold.  Look for the rest of the ball nearby to determine area.  The 
+# idea here is that the "most yellow" thing in the frame should be the ball.
+# Thus the best way to find it is finding the most yellow pixel and looking
+# around it.
+def findTargetProb(hsvFrame):
+    nx = hsvFrame.shape[1]
+    ny = hsvFrame.shape[0]
+    delta = hsvFrame - IDEAL_HSV
+    delta[delta > 180] = 360 - delta[delta > 180] # will only change hue. Sat and val are 0 to 1
+    probBall = np.exp(-(np.sum((delta/HSV_SIGMA)**2,axis=2)))
+    probBall *= (hsvFrame[:,:,0] > (IDEAL_HSV[0] - HUE_RANGE)) * (hsvFrame[:,:,0] < (IDEAL_HSV[0] + HUE_RANGE)) # MUST be correct hue
+    
+    probBallSm = spnd.gaussian_filter(probBall, 4) # gaussian smoothing filter
+    #probBallSm = probBall
+    peakXY = np.unravel_index(np.argmax(probBallSm, axis=None), probBall.shape)
+    
+    X = np.reshape(np.tile(np.arange(nx), ny),[ny,nx])
+    Y = np.reshape(np.tile(np.arange(ny), nx),[nx,ny]).T
+    
+    # Can be slow, maybe do a box instead?
+    distToPeak2 = (peakXY[0] - Y)**2 + (peakXY[1] - X)**2
+    mask = (distToPeak2 < (MAX_BALL_SIZE * (nx+ny)/2)**2) * \
+           (probBall >= BALL_THRESH)
+           
+    # If peak pixel is less than threshold, declare ball not present
+    if np.amax(probBall) < BALL_THRESH:
+        mask[:,:] = False
+    
+    
+    return mask, probBall
+
+############################
 
 # Finds all pixels with the color of the leader ball
 def findLeader(image):
 
     leaderMask = 0
     if DO_HSV:
-    	#print "Min img red: ", np.amin(image[:,:,0])
-    	#print "Min img red: ", np.amax(image[:,:,0])
-    	#print "Min img grn: ", np.amin(image[:,:,1])
-    	#print "Min img grn: ", np.amax(image[:,:,1])
-    	#print "Min img blu: ", np.amin(image[:,:,2])
-    	#print "Min img blu: ", np.amax(image[:,:,2])
     	#print "Image shape: ", image.shape
     	hsvImage = rgb2hsv(image)
-    	#print "Min img hue: ", np.amin(hsvImage[:,:,0])
-    	#print "Max img hue: ", np.amax(hsvImage[:,:,0])
-    	#print "Min img sat: ", np.amin(hsvImage[:,:,1])
-    	#print "Max img sat: ", np.amax(hsvImage[:,:,1])
-    	#print "Min img val: ", np.amin(hsvImage[:,:,2])
-    	#print "Max img val: ", np.amax(hsvImage[:,:,2])
     	if TARGET_COLOR == "neonyellow":
-            leaderMask   = (hsvImage[:,:,0] >= MIN_HUE) * \
-                           (hsvImage[:,:,0] <= MAX_HUE) * \
-                           (hsvImage[:,:,1] >= MIN_SAT) * \
-                           (hsvImage[:,:,1] <= MAX_SAT) * \
-                           (hsvImage[:,:,2] >= MIN_VAL) * \
-                           (hsvImage[:,:,2] <= MAX_VAL)
+          hsvFrame = rgb2hsv(frame)
+          leaderMask, probBall = findTargetProb(hsvFrame)
     	else:
-	    print("INVALID TARGET COLOR: ", TARGET_COLOR, " for HSV space")
+	       print("INVALID TARGET COLOR: ", TARGET_COLOR, " for HSV space")
     	    
     else:    
 	# Threshold pixels on RGB color (needs to be more complicated than this)
