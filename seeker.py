@@ -13,6 +13,7 @@ import datetime
 import logger
 import matplotlib.colors as mpc
 from PIL import Image
+import scipy.ndimage as spnd
 
 # Parameters
 DEBUG = False
