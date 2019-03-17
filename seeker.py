@@ -36,10 +36,10 @@ MIN_COAST_ANGLE = 60.0 # smallest allowable steer angle for a coast
 # HSV Colorspace analysis parameters
 # See http://colorizer.org/ for examples
 DO_HSV = True
-IDEAL_HSV = [55, 0.95, 0.6]  # neon yellow target ball
-HSV_SIGMA = [5, 0.1, 0.2]
+IDEAL_HSV = [60, 0.95, 0.6]  # neon yellow target ball
+HSV_SIGMA = [10, 0.1, 0.2]
 HUE_RANGE = 15
-BALL_THRESH = 0.1 # min probability a pixel can have and be declared ball
+BALL_THRESH = 0.01 # min probability a pixel can have and be declared ball
 MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of image size
 
 
