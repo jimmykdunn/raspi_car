@@ -218,10 +218,10 @@ def rgb2hsv(rgb):
 #HSV_SIGMA = [5, 0.1, 0.2] # best yet
 #HUE_RANGE = 15 # best yet
 #BALL_THRESH = 0.1 # best yet
-IDEAL_HSV = [55, 0.95, 0.6]
-HSV_SIGMA = [5, 0.1, 0.2]
+IDEAL_HSV = [60, 0.95, 0.6]
+HSV_SIGMA = [10, 0.1, 0.2]
 HUE_RANGE = 15
-BALL_THRESH = 0.1 # min probability a pixel can have and be declared ball
+BALL_THRESH = 0.01 # min probability a pixel can have and be declared ball
 MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of image size
     
 # Find the probability of the ball being at each pixel. Then find the peak
@@ -354,9 +354,10 @@ def process():
             break
 
     # Save all images as an animated GIF
+    dtframe = np.mean(np.diff(log.time)) * 1000
     startTime = log.startTime.strftime("%Y%m%d_%H%M%S")
     video[0].save(OUT_PATH+"_"+startTime+".gif", 
-         save_all=True, append_images=video[1:], duration=100, loop=0)
+         save_all=True, append_images=video[1:], duration=dtframe, loop=0)
 
 # Run the process program
 process()
