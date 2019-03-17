@@ -36,7 +36,7 @@ MIN_COAST_ANGLE = 60.0 # smallest allowable steer angle for a coast
 # HSV Colorspace analysis parameters
 # See http://colorizer.org/ for examples
 DO_HSV = True
-IDEAL_HSV = [55, 0.95, 0.6]
+IDEAL_HSV = [55, 0.95, 0.6]  # neon yellow target ball
 HSV_SIGMA = [5, 0.1, 0.2]
 HUE_RANGE = 15
 BALL_THRESH = 0.1 # min probability a pixel can have and be declared ball
@@ -128,14 +128,8 @@ def findLeader(image):
 
     leaderMask = 0
     if DO_HSV:
-    	#print "Image shape: ", image.shape
-    	hsvImage = rgb2hsv(image)
-    	if TARGET_COLOR == "neonyellow":
-          hsvFrame = rgb2hsv(frame)
-          leaderMask, probBall = findTargetProb(hsvFrame)
-    	else:
-	       print("INVALID TARGET COLOR: ", TARGET_COLOR, " for HSV space")
-    	    
+        hsvFrame = rgb2hsv(image)
+        leaderMask, probBall = findTargetProb(hsvFrame)    	    
     else:    
 	# Threshold pixels on RGB color (needs to be more complicated than this)
 	ballColorFraction = -1.0
