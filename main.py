@@ -36,6 +36,7 @@ IMAGE_ROTATE_ANGLE = 180  # Adjust for orientation of camera on car
 IMAGE_SAVENAME = "videos/frame" # path to save images to
 MASK_SAVENAME = "videos/mask"  # path to save mask images to
 LOGFILE = "logs/raspicar.log" # path to save logfiles to
+ANGLE_OFFSET = 15.0 # angle offset (+ right) to make car go perfectly straight
 
 # Pin mappings
 print("Setting pin mappings")
@@ -141,6 +142,10 @@ def error(message):
 # right. Speed is -1 (full throttle backward), to +1 (full throttle forward).
 # Output duty is -1 (full throttle backward), to +1 (full throttle forward).
 def angleSpeedToDuty(angleDeg, speed):
+    # Empirical adjustment for imperfect wheel alignment
+    angleDeg += ANGLE_OFFSET
+    angleDeg = np.amin([np.amax([angleDeg,-90.0]),90.0])
+    
     if angleDeg <= 0.0:
         # Turn left by slowing the left motors
         leftDuty = speed * np.cos(np.deg2rad(angleDeg)) * STEER_SCALE
@@ -233,17 +238,30 @@ def turnOff(camera, log):
 # Defines a manually-generated script for how to drive the car.
 def scripted_commands(loopCount):
 
-    # Test: S-turns
-    cycleLoops = 6000
-    lmc = loopCount % cycleLoops
-    if lmc < 0.5*cycleLoops:
-        desiredSteerAngle_deg = 80.0
-    elif (lmc > 0.5*cycleLoops) and (lmc < 1.0*cycleLoops):
+    # Test: full speed ahead
+    desiredSteerAngle_deg = 0.0
+    desiredSpeed = 1.0
+    
+    # Test: full right turn
+    #desiredSteerAngle_deg = 90.0
+    #desiredSpeed = 1.0
+    
+    # Test: full left turn
+    #desiredSteerAngle_deg = -90.0
+    #desiredSpeed = 1.0
 
-        desiredSteerAngle_deg = -80.0
-    else:
-        desiredSteerAngle_deg = 0.0
-    desiredSpeed = 1.0 # hardcode for now. Done by algorithm later.
+    # Test: S-turns
+    #cycleLoops = 6000
+    #lmc = loopCount % cycleLoops
+    #if lmc < 0.5*cycleLoops:
+    #    desiredSteerAngle_deg = 80.0
+    #elif (lmc > 0.5*cycleLoops) and (lmc < 1.0*cycleLoops):
+    #
+    #    desiredSteerAngle_deg = -80.0
+    #else:
+    #    desiredSteerAngle_deg = 0.0
+    #desiredSpeed = 1.0 # hardcode for now. Done by algorithm later.
+    
     return desiredSteerAngle_deg, desiredSpeed
 
 
@@ -258,6 +276,7 @@ def mainLoop(image, loopCount, pig, log):
 
     # Run a scripted command set
     #desiredSteerAngle_deg, desiredSpeed = scripted_commands(loopCount)
+    #leaderMask = np.zeros([image.shape[0], image.shape[1]])
 
     # Get user input from keyboard (if any) and translate to angle and speed.
     # User commands (if any) will override the automatic commands for safety.
