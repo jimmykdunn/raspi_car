@@ -19,7 +19,8 @@ import scipy.ndimage as spnd
 DEBUG = False
 TARGET_COLOR = "neonyellow"  # "red" "blue" "green" "neonyellow"
 DO_IMOPEN = False # run the imopen operation
-TARGET_COLOR_SENSITIVITY = 0.3 #0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
+TARGET_COLOR_SENSITIVITY = 0.1 #0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
+BALL_THRESH_REL = 0.5 # pixels must be within this value of peak to be declared ball
 MIN_LEADER_BRIGHTNESS = 0.0 #1.0# relative to image mean
 MIN_LEADER_SIZE = 0.0001
 ANGLE_SCALE = 400.0 #600.0 # steering degrees conversion. 
@@ -39,7 +40,7 @@ DO_HSV = False
 IDEAL_HSV = [60, 0.95, 0.6]  # neon yellow target ball
 HSV_SIGMA = [10, 0.1, 0.2]
 HUE_RANGE = 15
-BALL_THRESH = 0.01 # min probability a pixel can have and be declared ball
+BALL_THRESH = 0.05 # min probability a pixel can have and be declared ball
 MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of image size
 
 
@@ -130,7 +131,8 @@ def findTargetProb(hsvFrame):
 
 # Finds all pixels with the color of the leader ball
 def findLeader(image):
-
+    nx = image.shape[1]
+    ny = image.shape[0]
     leaderMask = 0
     if DO_HSV:
         hsvFrame = rgb2hsv(image)
@@ -140,20 +142,30 @@ def findLeader(image):
 	ballColorFraction = -1.0
 	if TARGET_COLOR == "red":
 	    ballColorFraction = image[:,:,0].astype(float) / np.sum(image.astype(float), axis=2)
+    	    leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY)
 	elif TARGET_COLOR == "green":
 	    ballColorFraction = image[:,:,1].astype(float) / np.sum(image.astype(float), axis=2)
+    	    leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY)
 	elif TARGET_COLOR == "blue":
 	    ballColorFraction = image[:,:,2].astype(float) / np.sum(image.astype(float), axis=2)
+    	    leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY)
 	elif TARGET_COLOR == "neonyellow":
             ballColorFraction = (image[:,:,1].astype(float)+image[:,:,0].astype(float))/(2*255) \
                 - image[:,:,2].astype(float) / (255) \
                 - np.abs(image[:,:,0].astype(float) - image[:,:,1].astype(float)) / 255
+            peakXY = np.unravel_index(np.argmax(ballColorFraction, axis=None), ballColorFraction.shape) 
+	    X = np.reshape(np.tile(np.arange(nx), ny),[ny,nx])
+	    Y = np.reshape(np.tile(np.arange(ny), nx),[nx,ny]).T	    
+	    distToPeak = np.abs(peakXY[0] - Y) + np.abs(peakXY[1] - X)
+	    leaderMask = (distToPeak < (MAX_BALL_SIZE * (nx+ny)/2)) * \
+	           (ballColorFraction >= BALL_THRESH_REL*ballColorFraction[peakXY[0],peakXY[1]])
+	           
+	    # If peak pixel is less than threshold, declare ball not present
+	    if np.amax(ballColorFraction) < BALL_THRESH:
+                leaderMask[:,:] = False 
 	else:
 	    print("INVALID TARGET COLOR: ", TARGET_COLOR)
 	    
-    	#image_brightness = np.sum(image.astype(float), axis=2) / 3 / np.mean(image.astype(float))
-    	leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY) #* \
-    	         #(image_brightness > MIN_LEADER_BRIGHTNESS)
     # end else (RGB)
 
     leaderMask = np.reshape(leaderMask, [image.shape[0], image.shape[1]])
