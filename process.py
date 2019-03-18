@@ -277,7 +277,7 @@ def process():
         # Try to read the frame. If it fails, we are out of images
         try:
             # Read the video frame
-            frame = readRIMG(rimgvpath)
+            frame = np.fliplr(readRIMG(rimgvpath))
             #plt.imshow(frame)
             
             # HSV probability masking for testing
@@ -298,7 +298,7 @@ def process():
             
                            
             # Read the mask frame
-            mask = readRIMG(rimgmpath) * 255
+            mask = np.fliplr(readRIMG(rimgmpath)) * 255
             #mask = np.reshape(((ballColorFraction > 0.1) * 255).astype(np.int32),[hs.shape[0],hs.shape[1],1])
             
             # Use for debugging only!! Post-processing test of algorithm
@@ -332,7 +332,7 @@ def process():
                     "Leader Visbl: " + str(log.tgtVisible[i]) + "\n" + \
                     "Coasting:     " + str(log.coasting[i])
             coln2 = "         TARGET MASK\n\n\n" + \
-                    "  RIGHT MOTOR     LEFT MOTOR\n" + \
+                    "  LEFT MOTOR      RIGHT MOTOR\n" + \
                     "     POWER           POWER\n" + \
                     "Angle (deg):  " + "%0.2f"% (log.angle[i]) + "\n" \
                     "Area (%)      " + "%0.2f"% (log.areapct[i]) + "\n" \
