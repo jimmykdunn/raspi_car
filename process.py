@@ -290,13 +290,19 @@ def process():
             #plt.imshow(hsvMask)
             #plt.imshow(probBall)
             #plt.imshow(frame)
+            
+            #hs = (frame[:,:,1].astype(float)+frame[:,:,0].astype(float))/(2*255) \
+            #    - frame[:,:,2].astype(float) / (255) \
+            #    - np.abs(frame[:,:,0].astype(float) - frame[:,:,1].astype(float)) / 255
+            #ballColorFraction = hs #-0.5-20*h + 10*v
+            
                            
             # Read the mask frame
             mask = readRIMG(rimgmpath) * 255
+            #mask = np.reshape(((ballColorFraction > 0.1) * 255).astype(np.int32),[hs.shape[0],hs.shape[1],1])
             
             # Use for debugging only!! Post-processing test of algorithm
             #hsvMask = 255*np.reshape(hsvMask, [hsvMask.shape[0], hsvMask.shape[1], 1])#!!!TEMPORARY!!!
-            #mask = hsvMask
             
             mask = np.repeat(mask, 3, axis=2) # make it have 3 colors
             #plt.imshow(mask)
