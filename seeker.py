@@ -19,8 +19,8 @@ import scipy.ndimage as spnd
 DEBUG = False
 TARGET_COLOR = "neonyellow"  # "red" "blue" "green" "neonyellow"
 DO_IMOPEN = False # run the imopen operation
-TARGET_COLOR_SENSITIVITY = 0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
-MIN_LEADER_BRIGHTNESS = 1.0# relative to image mean
+TARGET_COLOR_SENSITIVITY = 0.3 #0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
+MIN_LEADER_BRIGHTNESS = 0.0 #1.0# relative to image mean
 MIN_LEADER_SIZE = 0.0001
 ANGLE_SCALE = 400.0 #600.0 # steering degrees conversion. 
 AREA_SCALE = 30 #300 # larger = faster transition to full speed when target is not at desired distance
@@ -35,7 +35,7 @@ MIN_COAST_ANGLE = 60.0 # smallest allowable steer angle for a coast
 
 # HSV Colorspace analysis parameters
 # See http://colorizer.org/ for examples
-DO_HSV = True
+DO_HSV = False
 IDEAL_HSV = [60, 0.95, 0.6]  # neon yellow target ball
 HSV_SIGMA = [10, 0.1, 0.2]
 HUE_RANGE = 15
@@ -145,13 +145,15 @@ def findLeader(image):
 	elif TARGET_COLOR == "blue":
 	    ballColorFraction = image[:,:,2].astype(float) / np.sum(image.astype(float), axis=2)
 	elif TARGET_COLOR == "neonyellow":
-	    ballColorFraction = (image[:,:,0].astype(float)+image[:,:,1].astype(float)) / np.sum(image.astype(float), axis=2)
+            ballColorFraction = (image[:,:,1].astype(float)+image[:,:,0].astype(float))/(2*255) \
+                - image[:,:,2].astype(float) / (255) \
+                - np.abs(image[:,:,0].astype(float) - image[:,:,1].astype(float)) / 255
 	else:
 	    print("INVALID TARGET COLOR: ", TARGET_COLOR)
 	    
-    	image_brightness = np.sum(image.astype(float), axis=2) / 3 / np.mean(image.astype(float))
-    	leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY) * \
-    	         (image_brightness > MIN_LEADER_BRIGHTNESS)
+    	#image_brightness = np.sum(image.astype(float), axis=2) / 3 / np.mean(image.astype(float))
+    	leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY) #* \
+    	         #(image_brightness > MIN_LEADER_BRIGHTNESS)
     # end else (RGB)
 
     leaderMask = np.reshape(leaderMask, [image.shape[0], image.shape[1]])
