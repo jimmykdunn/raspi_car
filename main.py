@@ -31,7 +31,7 @@ PWM_FREQ = 100 # Frequency of motor control PWM signal
 PWM_VAL_MAX = 1e4 # Maximum value of PWM duty command
 IMAGE_RES_FULL = (640,480) #(128, 96)  # (x,y) num pixels of captured imagery
 IMAGE_RES_PROC = (80,60) #(80,60) # (x,y) num pixels of processed imagery
-FRAMERATE = 30
+FRAMERATE = 90
 IMAGE_ROTATE_ANGLE = 180  # Adjust for orientation of camera on car
 IMAGE_SAVENAME = "videos/frame" # path to save images to
 MASK_SAVENAME = "videos/mask"  # path to save mask images to
@@ -351,9 +351,9 @@ def main():
     		print "Beginning image capture at " + starttime.strftime("%m/%d/%Y %H:%M:%S")
     
     	        # Capture images continuously at the natural framerate of the camera
-                #for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
+                for foo in camera.capture_continuous(stream, 'jpeg',  resize = IMAGE_RES_PROC, use_video_port=True):
                 #for foo in camera.capture_continuous(stream, 'bmp', use_video_port=True):
-                for foo in camera.capture_continuous(stream, 'bmp', resize = IMAGE_RES_PROC, use_video_port=True):
+                #for foo in camera.capture_continuous(stream, 'bmp', resize = IMAGE_RES_PROC, use_video_port=True):
 	            GPIO.output(PIN_INFO_LED, GPIO.LOW) # blink on LED for capture
 	            stream.seek(0) # reset to the start of the stream so we can read from it
                     image = Image.open(stream)  # read image from stream as PIL image
