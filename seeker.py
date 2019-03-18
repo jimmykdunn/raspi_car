@@ -20,7 +20,7 @@ DEBUG = False
 TARGET_COLOR = "neonyellow"  # "red" "blue" "green" "neonyellow"
 DO_IMOPEN = False # run the imopen operation
 TARGET_COLOR_SENSITIVITY = 0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
-MIN_LEADER_BRIGHTNESS = 1.0 # relative to image mean
+MIN_LEADER_BRIGHTNESS = 1.0# relative to image mean
 MIN_LEADER_SIZE = 0.0001
 ANGLE_SCALE = 400.0 #600.0 # steering degrees conversion. 
 AREA_SCALE = 30 #300 # larger = faster transition to full speed when target is not at desired distance
@@ -102,16 +102,19 @@ def findTargetProb(hsvFrame):
     probBall = np.exp(-(np.sum((delta/HSV_SIGMA)**2,axis=2)))
     probBall *= (hsvFrame[:,:,0] > (IDEAL_HSV[0] - HUE_RANGE)) * (hsvFrame[:,:,0] < (IDEAL_HSV[0] + HUE_RANGE)) # MUST be correct hue
     
-    probBallSm = spnd.gaussian_filter(probBall, 4) # gaussian smoothing filter
-    #probBallSm = probBall
+    #probBallSm = spnd.gaussian_filter(probBall, 4) # gaussian smoothing filter
+    probBallSm = probBall
     peakXY = np.unravel_index(np.argmax(probBallSm, axis=None), probBall.shape)
     
     X = np.reshape(np.tile(np.arange(nx), ny),[ny,nx])
     Y = np.reshape(np.tile(np.arange(ny), nx),[nx,ny]).T
     
     # Can be slow, maybe do a box instead?
-    distToPeak2 = (peakXY[0] - Y)**2 + (peakXY[1] - X)**2
-    mask = (distToPeak2 < (MAX_BALL_SIZE * (nx+ny)/2)**2) * \
+    #distToPeak2 = (peakXY[0] - Y)**2 + (peakXY[1] - X)**2
+    #mask = (distToPeak2 < (MAX_BALL_SIZE * (nx+ny)/2)**2) * \
+    #       (probBall >= BALL_THRESH)
+    distToPeak = np.abs(peakXY[0] - Y) + np.abs(peakXY[1] - X)
+    mask = (distToPeak < (MAX_BALL_SIZE * (nx+ny)/2)) * \
            (probBall >= BALL_THRESH)
            
     # If peak pixel is less than threshold, declare ball not present
@@ -120,7 +123,9 @@ def findTargetProb(hsvFrame):
     
     
     return mask, probBall
-
+    
+    
+   
 ############################
 
 # Finds all pixels with the color of the leader ball
