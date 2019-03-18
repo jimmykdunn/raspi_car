@@ -31,7 +31,7 @@ PWM_FREQ = 100 # Frequency of motor control PWM signal
 PWM_VAL_MAX = 1e4 # Maximum value of PWM duty command
 IMAGE_RES_FULL = (640,480) #(128, 96)  # (x,y) num pixels of captured imagery
 IMAGE_RES_PROC = (80,60) #(80,60) # (x,y) num pixels of processed imagery
-FRAMERATE = 30
+FRAMERATE = 90
 IMAGE_ROTATE_ANGLE = 180  # Adjust for orientation of camera on car
 IMAGE_SAVENAME = "videos/frame" # path to save images to
 MASK_SAVENAME = "videos/mask"  # path to save mask images to
@@ -343,7 +343,12 @@ def main():
                 camera.resolution = IMAGE_RES_FULL # set resolution
                 camera.rotation = IMAGE_ROTATE_ANGLE # camera is mounted upside down
                 camera.framerate = FRAMERATE
-                stream = io.BytesIO() # stream to store imagery
+                
+                
+                #stream = io.BytesIO() # stream to store imagery
+                stream = picamera.array.PiRGBArray(camera, IMAGE_RES_PROC)
+                
+                
                 sleep(3) # let the camera warm up for 3 sec
                 
     	        starttime = datetime.datetime.now()
@@ -351,13 +356,15 @@ def main():
     		print "Beginning image capture at " + starttime.strftime("%m/%d/%Y %H:%M:%S")
     
     	        # Capture images continuously at the natural framerate of the camera
-                #for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
+    	        for frmVid in camera.capture_continuous(stream, format='rgb',resize = IMAGE_RES_PROC, use_video_port=True):
+                #for foo in camera.capture_continuous(stream, 'jpeg',  resize = IMAGE_RES_PROC, use_video_port=True):
                 #for foo in camera.capture_continuous(stream, 'bmp', use_video_port=True):
-                for foo in camera.capture_continuous(stream, 'bmp', resize = IMAGE_RES_PROC, use_video_port=True):
+                #for foo in camera.capture_continuous(stream, 'bmp', resize = IMAGE_RES_PROC, use_video_port=True):
 	            GPIO.output(PIN_INFO_LED, GPIO.LOW) # blink on LED for capture
-	            stream.seek(0) # reset to the start of the stream so we can read from it
-                    image = Image.open(stream)  # read image from stream as PIL image
-	            frame = np.array(image)  # Trnasform PIL image into a numpy ndarray
+	            #stream.seek(0) # reset to the start of the stream so we can read from it
+                    #image = Image.open(stream)  # read image from stream as PIL image
+	            #frame = np.array(image)  # Trnasform PIL image into a numpy ndarray
+	            frame = frmVid.array
                     frame = np.transpose(frame, (1,0,2)) # transpose to (x,y) from (y,x)
 		    
 	            # Process image frame and command car
@@ -376,7 +383,8 @@ def main():
     		    lastTime = nowtime
                     
                     
-	            stream.seek(0)
+	            #stream.seek(0)
+	            stream.truncate(0)
                     loopCount += 1
                     #sleep(0.0) # optional pause statement
                     
