@@ -17,7 +17,7 @@ import scipy.ndimage as spnd
 
 # Parameters
 DEBUG = False
-TARGET_COLOR = "neonyellow"  # "red" "blue" "green" "neonyellow"
+TARGET_COLOR = "neongreen"  # "red" "blue" "green" "neonyellow" "neongreen"
 DO_IMOPEN = False # run the imopen operation
 TARGET_COLOR_SENSITIVITY = 0.1 #0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
 BALL_THRESH_REL = 0.5 # pixels must be within this value of peak to be declared ball
@@ -153,19 +153,26 @@ def findLeader(image):
             ballColorFraction = (image[:,:,1].astype(float)+image[:,:,0].astype(float))/(2*255) \
                 - image[:,:,2].astype(float) / (255) \
                 - np.abs(image[:,:,0].astype(float) - image[:,:,1].astype(float)) / 255
-            peakXY = np.unravel_index(np.argmax(ballColorFraction, axis=None), ballColorFraction.shape) 
-	    X = np.reshape(np.tile(np.arange(nx), ny),[ny,nx])
-	    Y = np.reshape(np.tile(np.arange(ny), nx),[nx,ny]).T	    
-	    distToPeak = np.abs(peakXY[0] - Y) + np.abs(peakXY[1] - X)
-	    leaderMask = (distToPeak < (MAX_BALL_SIZE * (nx+ny)/2)) * \
-	           (ballColorFraction >= BALL_THRESH_REL*ballColorFraction[peakXY[0],peakXY[1]])
-	           
-	    # If peak pixel is less than threshold, declare ball not present
-	    if np.amax(ballColorFraction) < BALL_THRESH:
-                leaderMask[:,:] = False 
+	elif TARGET_COLOR == "neongreen":
+            ballColorFraction = image[:,:,1].astype(float) / 255 \
+                - image[:,:,0].astype(float) / 255 \
+                - image[:,:,2].astype(float) / 255
+            
 	else:
 	    print("INVALID TARGET COLOR: ", TARGET_COLOR)
-	    
+	  
+	# Use the peak-pixel method  
+	peakXY = np.unravel_index(np.argmax(ballColorFraction, axis=None), ballColorFraction.shape) 
+	X = np.reshape(np.tile(np.arange(nx), ny),[ny,nx])
+	Y = np.reshape(np.tile(np.arange(ny), nx),[nx,ny]).T	    
+	distToPeak = np.abs(peakXY[0] - Y) + np.abs(peakXY[1] - X)
+	leaderMask = (distToPeak < (MAX_BALL_SIZE * (nx+ny)/2)) * \
+	      (ballColorFraction >= BALL_THRESH_REL*ballColorFraction[peakXY[0],peakXY[1]])
+	           
+	# If peak pixel is less than threshold, declare ball not present
+	if np.amax(ballColorFraction) < BALL_THRESH:
+            leaderMask[:,:] = False 
+                
     # end else (RGB)
 
     leaderMask = np.reshape(leaderMask, [image.shape[0], image.shape[1]])
