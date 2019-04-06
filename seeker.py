@@ -32,7 +32,9 @@ ANGLE_BUFFER = 0.1 # no command will be issued if target center is within this m
 # to be taken.
 COAST_TIME = 4.0 # Seconds car is allowed to coast last command before stopping when target not visible
 MIN_COAST_ANGLE = 60.0 # smallest allowable steer angle for a coast
-
+DEG_PER_PCT = 0.49489 # xpct to angle conversion calibration parameter
+DEG_AT_ZEROPCT = -29.1764 # xpct to angle conversion calibration parameter (angle at left edge of FOV)
+AREA_2_RANGE = 0.5927 # area to range conversion parameter
 
 # HSV Colorspace analysis parameters
 # See http://colorizer.org/ for examples
@@ -48,6 +50,20 @@ MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of
 timeTgtLastVisible = datetime.datetime(2019,01,01,00,00,01)
 prevValidAngle = 0.0
 prevValidDuty = 0.0
+
+# Function to convert from x% to angle
+def xpct2Theta(xpct):
+    return DEG_PER_PCT * xpct + DEG_AT_ZEROPCT
+    
+# Function to convert from area% to range
+def areapct2Range(areapct):
+    return AREA_2_RANGE / np.sqrt(areapct)
+    
+# Function to convert from area% to range with upper and lower sigma bounds
+def areapct2RangeBounds(areapct):
+    return AREA_2_RANGE / np.sqrt(areapct), \
+           AREA_2_RANGE / np.sqrt(areapct*1.2), \
+           AREA_2_RANGE / np.sqrt(areapct*0.8)
 
 ###########################
 # Adptded from formulae on www.rapidtables.com/convert/color/rgb-to-hsv.html
@@ -276,6 +292,13 @@ def calculateCommand(image, loopCount, log):
             "{:5.1f}".format(100*leaderFractionalArea) + ", " + \
             "{:3d}".format(np.round(leaderX*100).astype(int)) + ", " + \
             "{:3d}".format(np.round(leaderY*100).astype(int)) + "\n")
+        print "    THETA (DEG): " + "{:3d}".format(np.round(xpct2Theta(leaderX*100)).astype(int))
+        crange, lowrange, hirange = areapct2RangeBounds(100*leaderFractionalArea)
+        print "    RANGE (m): " + \
+            "{:4.2f}".format(crange) + " (" + \
+            "{:4.2f}".format(lowrange) + ", " + \
+            "{:4.2f}".format(hirange) + ")"
+        #print "A% {:5.1f}".format(100*leaderFractionalArea)
 
         # Angle is a linear function of leader X position
         centerShift = 0.5 # usually middle of the image
