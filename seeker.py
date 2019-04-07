@@ -14,6 +14,7 @@ import logger
 import matplotlib.colors as mpc
 from PIL import Image
 import scipy.ndimage as spnd
+import kalman
 
 # Parameters
 DEBUG = False
@@ -50,6 +51,9 @@ MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of
 timeTgtLastVisible = datetime.datetime(2019,01,01,00,00,01)
 prevValidAngle = 0.0
 prevValidDuty = 0.0
+kalmanFilter = kalman.kalman_filter(0,0,0,0,0,0,0,0)
+lastLeftDuty = 0.0
+lastRightDuty = 0.0
 
 # Function to convert from x% to angle
 def xpct2Theta(xpct):
@@ -240,8 +244,12 @@ def locateMaskCentroid(mask):
 # Determine steering and throttle command based on image
 def calculateCommand(image, loopCount, log):
     global timeTgtLastVisible
+    global lastTime
     global prevValidAngle
     global prevValidDuty
+    global kalmanFilter
+    global lastLeftDuty
+    global lastRightDuty
     
     if DEBUG:
         plt.imshow(image)
@@ -250,6 +258,14 @@ def calculateCommand(image, loopCount, log):
         print("type(image): ", type(image))
         print("image.shape: ", image.shape)
         #input("BREAKPOINT: Press enter to continue")
+        
+    # Get the time that has passed since the last image and since
+    # the last time the target was seen.
+    currentTime = datetime.datetime.now()
+    if loopCount == 0:
+    	lastTime = currentTime
+    dt = (currentTime - lastTime).total_seconds()
+    dttarget = (currentTime - timeTgtLastVisible).total_seconds()
         
     # Find all pixels with the ball
     leaderMask = findLeader(image)
@@ -260,8 +276,7 @@ def calculateCommand(image, loopCount, log):
     leaderFractionalArea = float(leaderArea)/(image.shape[0]*image.shape[1])
     
     # If leader is below a certain size threshold, we probably
-    # can't see it. Command no motion. May do something 
-    # smarter in the future.
+    # can't see it.
     angle = 0.0
     throttleDuty = 0.0
     if leaderFractionalArea < MIN_LEADER_SIZE:
@@ -269,10 +284,8 @@ def calculateCommand(image, loopCount, log):
         # Target is not (easily) visible. Repeat last command, so long as
         # we have not been without target visibility in more than N sec, and
         # so long as the command is a turn (don't coast forward too much!)
-        currentTime = datetime.datetime.now()
-        dt = (currentTime - timeTgtLastVisible).total_seconds()
-	log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Coasted for " + str(dt) + " seconds\n")
-        if COAST_TIME >= dt and np.abs(prevValidAngle) > MIN_COAST_ANGLE:
+	log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Coasted for " + str(dttarget) + " seconds\n")
+        if COAST_TIME >= dttarget and np.abs(prevValidAngle) > MIN_COAST_ANGLE:
 	    #print("    Prev angle: ", prevValidAngle)
 	    #print("    Prev duty: ", prevValidDuty)
             angle = prevValidAngle
@@ -292,13 +305,31 @@ def calculateCommand(image, loopCount, log):
             "{:5.1f}".format(100*leaderFractionalArea) + ", " + \
             "{:3d}".format(np.round(leaderX*100).astype(int)) + ", " + \
             "{:3d}".format(np.round(leaderY*100).astype(int)) + "\n")
-        print "    THETA (DEG): " + "{:3d}".format(np.round(xpct2Theta(leaderX*100)).astype(int))
+        measuredTheta = xpct2Theta(leaderX*100)
+        angleSigma = 1.0
+        #print "    THETA (DEG): " + "{:3d}".format(np.round(measuredTheta).astype(int))
         crange, lowrange, hirange = areapct2RangeBounds(100*leaderFractionalArea)
-        print "    RANGE (m): " + \
-            "{:4.2f}".format(crange) + " (" + \
-            "{:4.2f}".format(lowrange) + ", " + \
-            "{:4.2f}".format(hirange) + ")"
+        rangeSigma = (hirange-lowrange)/2
+        #print "    RANGE (m): " + \
+        #    "{:4.2f}".format(crange) + " (" + \
+        #    "{:4.2f}".format(lowrange) + ", " + \
+        #    "{:4.2f}".format(hirange) + ")"
         #print "A% {:5.1f}".format(100*leaderFractionalArea)
+        
+        
+        
+        
+        # Here we apply the Kalman filter to make corrections to the potentially
+        # noisy or missing measurement of the leader.
+        #print "KALMAN STATE"
+        kalmanFilter.project(dt, lastLeftDuty, lastRightDuty)
+        kalmanFilter.update([crange, measuredTheta], [[rangeSigma, 0],[0, angleSigma]])
+        #print "KALMAN STATE"
+        #kalmanFilter.printState()
+        #print "KALMAN COVARIANCE"
+        #kalmanFilter.printCovariance()
+        #print ""
+        
 
         # Angle is a linear function of leader X position
         centerShift = 0.5 # usually middle of the image
@@ -325,5 +356,8 @@ def calculateCommand(image, loopCount, log):
     
     # Do not allow negative throttleDuty (i.e. don't go in reverse)
     throttleDuty = np.max([0.0, throttleDuty])
+
+    # Save the time of this frame for the kalman filter
+    lastTime = currentTime
 
     return angle, throttleDuty, leaderMask

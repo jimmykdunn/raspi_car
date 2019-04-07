@@ -9,12 +9,16 @@
 import numpy as np
 
 
+FULL_THROTTLE_SPEED = 0.52 # m/s range reduction at full speed
+SLOW_FROM_STEER = 5.0 # How much mismatched duty slows range decrease 
+ANGLE_RATE = 132.0 # rotation degrees per second per duty disparity
+
 # Holds the kalman filter state for the target
 # State is a 4-element vector (R, theta, vR, vTheta), plus a 4x4 
 # covariance matrix (sigR, sigTheta, sigvR, sigvTheta diagonal terms).
 # We initalize them with values upon construction of the class.
 class kalman_filter:
-    def __init__(R, theta, vR, vTheta, sigR, sigTheta, sigvR, sigvTheta):
+    def __init__(self, R, theta, vR, vTheta, sigR, sigTheta, sigvR, sigvTheta):
         
         self.stateVector = [R, theta, vR, vTheta]
         
@@ -36,25 +40,30 @@ class kalman_filter:
         # We measure range and angle directly, and don't measure range rate
         # or angle rate, so this is a 2x4 matrix as follows     
         self.H = [[1, 0, 0, 0], \
-                  [0, 1, 0, 0]] 
+                  [0, 1, 0, 0]]
 	
 
     # Takes the state of the target and projects it forward by dt seconds.
     # This should include a "Bu" control term for the PWM duty in the future.
-    def project(self, dt):
+    def project(self, dt, lastLeftDuty, lastRightDuty):
         updateMatrix = [[1, 0, dt, 0], \
                         [0, 1, 0, dt], \
                         [0, 0, 1,  0], \
                         [0, 0, 0,  1]]
+                     
+        applied_dR = -FULL_THROTTLE_SPEED * dt * (lastLeftDuty + lastRightDuty) / \
+                     np.exp(np.abs(lastLeftDuty - lastRightDuty)*SLOW_FROM_STEER)
+        applied_dTheta = (lastRightDuty - lastLeftDuty) * ANGLE_RATE * dt
+        appliedControl = [applied_dR, applied_dTheta, 0, 0]
         
-        self.stateVector = np.dot(updateMatrix, self.stateVector)
-        self.covMatrix = np.dot(np.dot(updateMatrix, self.covMatrix), updateMatrix.T) + self.Q
+        self.stateVector = np.dot(updateMatrix, self.stateVector) + appliedControl
+        self.covMatrix = np.dot(np.dot(updateMatrix, self.covMatrix), np.transpose(updateMatrix)) + self.Q
         
 
     # Updates the state using the measurement. Note that it is assumed we have
     # already projected the state forward at this point, so the update step is
     # literally just changing the state per the measurement.
-    # K = P H (H P H' + R)^-1
+    # K = P H' (H P H' + R)^-1
     # x = x + K (z - H x)
     # P = P - K H P
     # measurement is a 2x1 vector [R, theta]
@@ -64,8 +73,8 @@ class kalman_filter:
         # Create the Kalman gain matrix, which carries the relationship between
         # the error of the measurements and the existing covaraince matrix.
         # Only need the measurement error to calculate it.
-    	K = np.dot(np.dot(self.covMatrix, self.H), \
-    		      np.inv(np.dot(np.dot(self.H, self.covMatrix), self.H.T) \
+    	K = np.dot(np.dot(self.covMatrix, np.transpose(self.H)), \
+    		      np.linalg.inv(np.dot(np.dot(self.H, self.covMatrix), np.transpose(self.H)) \
     		             + msmtErrorMatrix) \
     		  )
   
@@ -77,3 +86,11 @@ class kalman_filter:
     
         # Update the covariance matrix based on the kalman gain
         self.covMatrix = self.covMatrix - np.dot(K, np.dot(self.H, self.covMatrix))
+        
+    # Prints the state of the Kalman filter
+    def printState(self):
+    	print self.stateVector
+    	
+    # Prints the covariance of the Kalman filter
+    def printCovariance(self):
+        print self.covMatrix

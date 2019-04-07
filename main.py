@@ -24,6 +24,7 @@ import logger
 import os
 import glob
 import datetime
+import kalman
 
 # Parameters
 STEER_SCALE = 1.0 # Calibrates how much to slow motors when turning
@@ -267,6 +268,9 @@ def scripted_commands(loopCount):
 
 # Main loop.  This is looped over external to the function
 def mainLoop(image, loopCount, pig, log):
+    global lastLeftDuty
+    global lastRightDuty
+    global kalmanFilter
    
     # Determine the desired steering angle in degrees and speed from 0 
     # (stopped), to 1 (full speed).
@@ -321,6 +325,11 @@ def mainLoop(image, loopCount, pig, log):
     #print "mask shape: ", leaderMask.shape
     logger.saveImage(leaderMask, MASK_SAVENAME, loopCount)
     
+    # Save the previously commanded left and right duty values
+    lastLeftDuty = leftDuty
+    lastRightDuty = rightDuty
+   
+    
     return loopCount
 # end mainLoop
 
@@ -330,6 +339,8 @@ def mainLoop(image, loopCount, pig, log):
 # physical switch for the drive motors that can be used to prevent the car
 # from actually moving while this program is still running in the background.
 def main():
+
+    global kalmanFilter
 
     # Remove old videos and logs
     oldVideos = glob.glob("videos/*.rimg")
@@ -372,8 +383,11 @@ def main():
                 
     	        starttime = datetime.datetime.now()
 		log.write("Beginning image capture at " + starttime.strftime("%m/%d/%Y %H:%M:%S") + "\n")
-    		print "Beginning image capture at " + starttime.strftime("%m/%d/%Y %H:%M:%S")
+    		print "Beginning image capture at " + starttime.strftime("%m/%d/%Y %H:%M:%S")   
     
+                # Initialize Kalman filter
+                kalmanFilter = kalman.kalman_filter(0,0,0,0,0,0,0,0)
+                
     	        # Capture images continuously at the natural framerate of the camera
     	        for frmVid in camera.capture_continuous(stream, format='rgb',resize = IMAGE_RES_PROC, use_video_port=True):
                 #for foo in camera.capture_continuous(stream, 'jpeg',  resize = IMAGE_RES_PROC, use_video_port=True):
