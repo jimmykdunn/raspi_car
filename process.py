@@ -8,11 +8,12 @@
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 import struct
 import datetime
 import platform
 import scipy.ndimage as spnd
-
+from time import sleep
 
 # Paths to all the data
 VIDEO_PATH = "videos/frame_"
@@ -43,6 +44,13 @@ class logReader:
         self.coasting = []
         self.tgtVisible = []
         self.startTime = datetime.datetime.now()
+        self.range = []
+        self.theta = []
+        self.x = []
+        self.y = []
+        self.kalmanState = []
+        self.kalmanCov = []
+        self.kalmanXY = []
         
         # Read in the log info into a simple text list
         with open(path, "r") as log:
@@ -64,6 +72,13 @@ class logReader:
         self.rightDuty.append(0.0)
         self.coasting.append(False)
         self.tgtVisible.append(True)
+        self.range.append(0.0)
+        self.theta.append(0.0)
+        self.x.append(0.0)
+        self.y.append(0.0)
+        self.kalmanState.append([0,0,0,0])
+        self.kalmanCov.append([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
+        self.kalmanXY.append([0.0,0.0])
                 
     
     # Take the log and extract useful info into arrays by frame number
@@ -116,6 +131,28 @@ class logReader:
                     self.coasting[frame] = True
                 if "Leader lost" in tokens[2]:
                     self.coasting[frame] = False
+                    
+            # Range theta (physical angle to ball) line
+            elif tokens[0] == "@@@":
+                self.range[frame] = float(tokens[3])
+                self.theta[frame] = float(tokens[4])
+                self.x[frame] = self.range[frame] * np.sin(self.theta[frame]*np.pi/180.0)
+                self.y[frame] = self.range[frame] * np.cos(self.theta[frame]*np.pi/180.0)
+                    
+            # Kalman state line
+            elif tokens[0] == "$$$": 
+                state = []
+                cov = []
+                for token in tokens[3:7]:
+                    state.append(float(token))
+                for token in tokens[7:]:
+                    cov.append(float(token))
+                cov = np.reshape(cov,[4,4])
+                self.kalmanState[frame] = state
+                self.kalmanCov[frame] = cov
+                self.kalmanXY[frame] = \
+                    [self.kalmanState[frame][0] * np.sin(self.kalmanState[frame][1]*np.pi/180.0), \
+                     self.kalmanState[frame][0] * np.cos(self.kalmanState[frame][1]*np.pi/180.0)]
             
             # Printed info status line (ignore)
             else:
@@ -259,6 +296,67 @@ def findTargetProb(hsvFrame):
 
 ############################
 
+# Plots the state and covariance of the Kalman filter
+def plotKalmanSolution(log):
+    
+    # Pull the kalman ranges and angles and their velocities at each time
+    kRA = [step[0:2] for step in log.kalmanState] # ranges and angles
+    kvRA = [step[2:4] for step in log.kalmanState] # range and angle velocity
+    
+    # Pull the range-angle part of the covariance matrix at each time
+    plt.figure()
+    # Plot the detected range and angle through time
+    for i, ra in enumerate(zip(log.range,log.theta)):
+        rng, ang = ra
+        plt.plot(ang,rng)
+        plt.plot([ang], [rng], marker='+', markersize=i/10, color="green")
+    
+    # Plot the kalman range and angle through time
+    for i, ra in enumerate(kRA):
+        rng, ang = ra
+        plt.plot(ang,rng)
+        plt.plot([ang], [rng], marker='o', markersize=i/10, color="red")
+        
+    # Plot the covariance ellipses
+    for i, kRACov in enumerate(zip(kRA,log.kalmanCov)):
+        thiskRA = kRACov[0] # unpack range/angle
+        thiskCov = kRACov[1] # unpack covariance
+        rangeSigma = thiskCov[0][0]
+        angleSigma = thiskCov[1][1]
+        crossSigma1 = thiskCov[0][1]
+        crossSigma2 = thiskCov[1][0]
+        ell = Ellipse(xy=thiskRA[::-1], width=angleSigma, height=rangeSigma, angle=crossSigma1)
+        ax = plt.gca()
+        ax.add_artist(ell)
+        ell.set_clip_box(ax.bbox)
+        ell.set_alpha(0.4)
+        ell.set_facecolor([0,1,0])
+        
+    kRAnumpy = np.array(kRA)
+    plt.plot(kRAnumpy[:,1],kRAnumpy[:,0])
+    plt.xlabel("Angle (deg)")
+    plt.ylabel("Range (m)")
+    plt.show()
+    
+    # New figure
+    plt.figure()
+    # Plot the detected xy through time
+    for i, xy in enumerate(zip(log.x,log.y)):
+        x, y = xy
+        plt.plot(x,y)
+        plt.plot([x], [y], marker='+', markersize=i/10, color="green")
+        
+    # Plot the kalman XY through time
+    for i, xy in enumerate(log.kalmanXY):
+        x, y = xy
+        plt.plot(x,y)
+        plt.plot([x], [y], marker='o', markersize=i/10, color="red")
+        
+    kXYnp = np.array(log.kalmanXY)  
+    plt.plot(kXYnp[:,0], kXYnp[:,1])
+    plt.xlabel("X (m)")
+    plt.ylabel("Y (m)")
+    plt.show()
 
 
 # Main processing function
@@ -266,6 +364,10 @@ def process():
     # Read and process the log file
     log = logReader(LOG_PATH)
     log.process()
+    
+    plotKalmanSolution(log)
+    return
+    
     
     # Loop over frames
     i = 0
@@ -291,9 +393,8 @@ def process():
             #plt.imshow(probBall)
             #plt.imshow(frame)
             
-            #hs = (frame[:,:,1].astype(float)+frame[:,:,0].astype(float))/(2*255) \
-            #    - frame[:,:,2].astype(float) / (255) \
-            #    - np.abs(frame[:,:,0].astype(float) - frame[:,:,1].astype(float)) / 255
+            #hs = frame[:,:,1].astype(float) / 255 \
+            #    - frame[:,:,2].astype(float) / 255 - frame[:,:,0].astype(float) / 255
             #ballColorFraction = hs #-0.5-20*h + 10*v
             
                            
