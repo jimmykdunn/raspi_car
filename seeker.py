@@ -21,7 +21,8 @@ DEBUG = False
 TARGET_COLOR = "neonyellow"  # "red" "blue" "green" "neonyellow" "neongreen"
 DO_IMOPEN = False # run the imopen operation
 TARGET_COLOR_SENSITIVITY = 0.1 #0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
-BALL_THRESH_REL = 0.5 # pixels must be within this value of peak to be declared ball
+BALL_THRESH = 0.3 # min color value a pixel can have and be declared ball
+BALL_THRESH_REL = 0.6 # pixels must be within this value of peak to be declared ball
 MIN_LEADER_BRIGHTNESS = 0.0 #1.0# relative to image mean
 MIN_LEADER_SIZE = 0.0001
 DEG_PER_PCT = 0.49489 # xpct to angle conversion calibration parameter
@@ -29,9 +30,9 @@ DEG_AT_ZEROPCT = -29.1764 # xpct to angle conversion calibration parameter (angl
 AREA_2_RANGE = 0.5927 # area to range conversion parameter
 USE_KALMAN = True # use kalman filtered positions for control commands (True) or use exact detected position (False)
 ANGLE_SCALE = 12.0 # multiply detected angle by this amount to determine steering angle
-RANGE_SCALE = 3.0 # multiply range (in meters) by this to get desired duty
+RANGE_SCALE = 3.0 # multiply range offset from DESIRED_RANGE (in meters) by this to get desired duty
 DESIRED_RANGE = 0.3 # Desired range (have zero duty at this range) (meters)
-ANGLE_BOOST = 0.03 # Tack on more throttle if the angle is offcenter to force a turn
+ANGLE_BOOST = 0.015 # Tack on more throttle if the angle is offcenter to force a turn
 
 # HSV Colorspace analysis parameters
 # See http://colorizer.org/ for examples
@@ -39,7 +40,6 @@ DO_HSV = False
 IDEAL_HSV = [60, 0.95, 0.6]  # neon yellow target ball
 HSV_SIGMA = [10, 0.1, 0.2]
 HUE_RANGE = 15
-BALL_THRESH = 0.5 # min probability a pixel can have and be declared ball
 MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of image size
 
 
@@ -184,6 +184,7 @@ def findLeader(image):
 	           
 	# If peak pixel is less than threshold, declare ball not present
 	if np.amax(ballColorFraction) < BALL_THRESH:
+	    print "BALL NOT PRESENT. Max ball Color Fraction = " + str(np.amax(ballColorFraction))
             leaderMask[:,:] = False 
                 
     # end else (RGB)
@@ -260,7 +261,7 @@ def calculateCommand(image, loopCount, log):
     # If the leader is not visible (i.e. if the mask does not have enough
     # pixels above BALL_THRESH), then take a different approach for Kalman
     # vs no Kalman.
-    if leaderFractionalArea < MIN_LEADER_SIZE and not USE_KALMAN:
+    if (leaderFractionalArea < MIN_LEADER_SIZE) and not USE_KALMAN:
         # Leader is not visible and we will not be using the Kalman filter to
         # predict where it went. Command zero motion.
         log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Commanded to stop.\n")
@@ -334,7 +335,7 @@ def calculateCommand(image, loopCount, log):
     # give the throttle duty a boost for large angles.  Duty will be capped
     # at +/-1.0 anyway, so we don't have to worry about limiting this.
     throttleDuty = RANGE_SCALE * (targetRange - DESIRED_RANGE) \
-        + ANGLE_BOOST*np.abs(targetAngle)
+        + ANGLE_BOOST*np.abs(targetTheta)
         
     # Force steering angle to be between -90 and 90
     steerAngle = np.min([90.0, np.max([-90.0, steerAngle])])
