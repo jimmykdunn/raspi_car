@@ -18,7 +18,7 @@ import kalman
 
 # Parameters
 DEBUG = False
-TARGET_COLOR = "neongreen"  # "red" "blue" "green" "neonyellow" "neongreen"
+TARGET_COLOR = "neonyellow"  # "red" "blue" "green" "neonyellow" "neongreen"
 DO_IMOPEN = False # run the imopen operation
 TARGET_COLOR_SENSITIVITY = 0.1 #0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
 BALL_THRESH_REL = 0.5 # pixels must be within this value of peak to be declared ball
@@ -36,6 +36,10 @@ MIN_COAST_ANGLE = 60.0 # smallest allowable steer angle for a coast
 DEG_PER_PCT = 0.49489 # xpct to angle conversion calibration parameter
 DEG_AT_ZEROPCT = -29.1764 # xpct to angle conversion calibration parameter (angle at left edge of FOV)
 AREA_2_RANGE = 0.5927 # area to range conversion parameter
+USE_KALMAN = True # use kalman filtered positions for control commands (True) or use exact detected position (False)
+KALMAN_ANGLE_SCALE = 12.0 # multiply detected angle by this amount to determine steering angle
+KALMAN_RANGE_SCALE = 3.0 # multiply range (in meters) by this to get desired duty
+KALMAN_DESIRED_RANGE = 0.3 # Desired range (have zero duty at this range) (meters)
 
 # HSV Colorspace analysis parameters
 # See http://colorizer.org/ for examples
@@ -43,7 +47,7 @@ DO_HSV = False
 IDEAL_HSV = [60, 0.95, 0.6]  # neon yellow target ball
 HSV_SIGMA = [10, 0.1, 0.2]
 HUE_RANGE = 15
-BALL_THRESH = 0.05 # min probability a pixel can have and be declared ball
+BALL_THRESH = 0.5 # min probability a pixel can have and be declared ball
 MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of image size
 
 
@@ -66,8 +70,8 @@ def areapct2Range(areapct):
 # Function to convert from area% to range with upper and lower sigma bounds
 def areapct2RangeBounds(areapct):
     return AREA_2_RANGE / np.sqrt(areapct), \
-           AREA_2_RANGE / np.sqrt(areapct*1.2), \
-           AREA_2_RANGE / np.sqrt(areapct*0.8)
+           AREA_2_RANGE / np.sqrt(areapct*1.5), \
+           AREA_2_RANGE / np.sqrt(areapct*0.5)
 
 ###########################
 # Adptded from formulae on www.rapidtables.com/convert/color/rgb-to-hsv.html
@@ -279,22 +283,26 @@ def calculateCommand(image, loopCount, log):
     # can't see it.
     angle = 0.0
     throttleDuty = 0.0
-    if leaderFractionalArea < MIN_LEADER_SIZE:
-        
-        # Target is not (easily) visible. Repeat last command, so long as
-        # we have not been without target visibility in more than N sec, and
-        # so long as the command is a turn (don't coast forward too much!)
-	log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Coasted for " + str(dttarget) + " seconds\n")
-        if COAST_TIME >= dttarget and np.abs(prevValidAngle) > MIN_COAST_ANGLE:
-	    #print("    Prev angle: ", prevValidAngle)
-	    #print("    Prev duty: ", prevValidDuty)
-            angle = prevValidAngle
-	    throttleDuty = prevValidDuty
-	else:
-	    log.write("^^^," + "{:5d}".format(loopCount) + ", Leader lost. Car commanded to stop.\n")
-            return 0.0, 0.0, leaderMask
-    else:
-    
+     
+#    # Naive Kalman filter - don't do this anymore!!! 
+#    if leaderFractionalArea < MIN_LEADER_SIZE:
+#    
+#       # Target is not (easily) visible. Repeat last command, so long as
+#       # we have not been without target visibility in more than N sec, and
+#       # so long as the command is a turn (don't coast forward too much!)
+#	log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Coasted for " + str(dttarget) + " seconds\n")
+#       if COAST_TIME >= dttarget and np.abs(prevValidAngle) > MIN_COAST_ANGLE:
+#	    #print("    Prev angle: ", prevValidAngle)
+#	    #print("    Prev duty: ", prevValidDuty)
+#           angle = prevValidAngle
+#	    throttleDuty = prevValidDuty
+#	else:
+#	    log.write("^^^," + "{:5d}".format(loopCount) + ", Leader lost. Car commanded to stop.\n")
+#           return 0.0, 0.0, leaderMask
+#    else:
+
+    # Calculate and (optionally) print the range and angle to the leader
+    if leaderFractionalArea >= MIN_LEADER_SIZE:
         # Centroid of leader mask is where to point. Find it.
         leaderX, leaderY = locateMaskCentroid(leaderMask)
         leaderX /= leaderMask.shape[0]
@@ -306,53 +314,62 @@ def calculateCommand(image, loopCount, log):
             "{:3d}".format(np.round(leaderX*100).astype(int)) + ", " + \
             "{:3d}".format(np.round(leaderY*100).astype(int)) + "\n")
         measuredTheta = xpct2Theta(leaderX*100)
-        angleSigma = 1.0
-        #print "    THETA (DEG): " + "{:3d}".format(np.round(measuredTheta).astype(int))
+        angleSigma = 3.0
         crange, lowrange, hirange = areapct2RangeBounds(100*leaderFractionalArea)
-        rangeSigma = (hirange-lowrange)/2
-        #print "    RANGE (m): " + \
-        #    "{:4.2f}".format(crange) + " (" + \
-        #    "{:4.2f}".format(lowrange) + ", " + \
-        #    "{:4.2f}".format(hirange) + ")"
-        #print "A% {:5.1f}".format(100*leaderFractionalArea)
+        rangeSigma = (hirange-lowrange)/2      
+        log.write("@@@," + "{:5d}".format(loopCount) + ", detected range angle, " + "{:6.3f}".format(crange) + ", " + "{:6.3f}".format(measuredTheta) + "\n")
+    else:
+        log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Coasted for " + str(dttarget) + " seconds\n") 
         
         
         
-        
-        # Here we apply the Kalman filter to make corrections to the potentially
-        # noisy or missing measurement of the leader.
-        #kalmanFilter.project(dt, lastLeftDuty, lastRightDuty)
-        kalmanFilter.project(dt, lastLeftDuty, lastRightDuty) # use for motor off
+    # Here we apply the Kalman filter to make corrections to the potentially
+    # noisy or missing measurement of the leader.
+    #kalmanFilter.project(dt, lastLeftDuty, lastRightDuty)
+    kalmanFilter.project(dt, 0.0, 0.0) # use for motor off
+    if leaderFractionalArea >= MIN_LEADER_SIZE: # update only if ball was actually detected
         kalmanFilter.update([crange, measuredTheta], [[rangeSigma, 0],[0, angleSigma]])
-        stateStr = ""
-        covStr = ""
-        for val in kalmanFilter.stateVector:
-            stateStr += ", " + "{:6.3f}".format(val)
-        for row in kalmanFilter.covMatrix:
-            for val in row:
-                covStr += ", " + "{:6.3f}".format(val)            
-        log.write("$$$," + "{:5d}".format(loopCount) + ", kalman status" + stateStr + covStr + "\n")
-        
+    stateStr = ""
+    covStr = ""
+    for val in kalmanFilter.stateVector:
+        stateStr += ", " + "{:6.3f}".format(val)
+    for row in kalmanFilter.covMatrix:
+        for val in row:
+            covStr += ", " + "{:6.3f}".format(val)            
+    log.write("$$$," + "{:5d}".format(loopCount) + ", kalman status" + stateStr + covStr + "\n")
+    
+    
+    
+    # Calculate angle and throttle duty commands
+    if not USE_KALMAN:  
+        if leaderFractionalArea >= MIN_LEADER_SIZE:
+            # Angle is a linear function of leader X position
+            centerShift = 0.5 # usually middle of the image
+            angle = ANGLE_SCALE * (leaderX - centerShift) # use detection exactly
+            
 
-        # Angle is a linear function of leader X position
-        centerShift = 0.5 # usually middle of the image
-        angle = ANGLE_SCALE * (leaderX - centerShift)
 
-        # Force angle to be between -90 and 90
-        angle = np.min([90.0, np.max([-90.0, angle])])
-
-        # Throttle duty is a function of the inverse of ball size.
-        # Smaller ball area means farther distance to leader,
-        # and thus stronger throttle.
-        if (np.abs(leaderFractionalArea - DESIRED_AREA) > AREA_BUFFER) \
-	    or (np.abs(leaderX - centerShift) > ANGLE_BUFFER):
-    	    throttleDuty = (DESIRED_AREA - leaderFractionalArea) * AREA_SCALE
+            # Throttle duty is a function of the inverse of ball size.
+            # Smaller ball area means farther distance to leader,
+            # and thus stronger throttle.
+            if (np.abs(leaderFractionalArea - DESIRED_AREA) > AREA_BUFFER) \
+	        or (np.abs(leaderX - centerShift) > ANGLE_BUFFER):
+    	        throttleDuty = (DESIRED_AREA - leaderFractionalArea) * AREA_SCALE
     	
-    	    # Save current time as time the target was last visible
-    	    timeTgtLastVisible = datetime.datetime.now()
-    	    prevValidAngle = angle
-    	    prevValidDuty = throttleDuty
+    	        # Save current time as time the target was last visible
+    	        timeTgtLastVisible = datetime.datetime.now()
+    	        prevValidAngle = angle
+    	        prevValidDuty = throttleDuty
+    else:
+    	# Use kalman solution for angle and range to get throttle angle and duty.
+    	# If theta is large and range is small, we still want to turn, so
+    	# set the throttle duty proportional to the absolute value of the angle.
+    	angle = KALMAN_ANGLE_SCALE * kalmanFilter.stateVector[1]
+        throttleDuty = KALMAN_RANGE_SCALE * (kalmanFilter.stateVector[0]-KALMAN_DESIRED_RANGE) * \
+            (1.0+0.1*np.abs(kalmanFilter.stateVector[1]))
         
+    # Force angle to be between -90 and 90
+    angle = np.min([90.0, np.max([-90.0, angle])])
 
     # Force throttleDuty to be between -1 and 1
     throttleDuty = np.min([1.0, np.max([-1.0, throttleDuty])])

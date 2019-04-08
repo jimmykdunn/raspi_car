@@ -31,10 +31,10 @@ class kalman_filter:
         # of the uncertainty related to the motion of the lead agent.
         # In reality, this is a function of the time since the last measurement,
         # but since we have a somewhat stable framerate, we let it be constant.
-        self.Q = [[0.1, 0, 0,   0], \
-                  [0,   3, 0,   0], \
-                  [0,   0, 0.1, 0], \
-                  [0,   0, 0,   3]]
+        self.Q = [[0.2, 0, 0,   0], \
+                  [0,   6, 0,   0], \
+                  [0,   0, 0.2, 0], \
+                  [0,   0, 0,   6]]
                   
         # State to sensor reading mapping matrix 
         # We measure range and angle directly, and don't measure range rate
