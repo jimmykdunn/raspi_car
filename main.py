@@ -241,7 +241,7 @@ def scripted_commands(loopCount):
 
     # Test: full speed ahead
     desiredSteerAngle_deg = 0.0
-    desiredSpeed = 1.0
+    desiredSpeed = -1.0
     
     # Test: full right turn
     #desiredSteerAngle_deg = 90.0
@@ -300,7 +300,7 @@ def mainLoop(image, loopCount, pig, log):
     # Convert the desired angle and speed into PWM duty factors for the left
     # and right wheel motors.
     leftDuty, rightDuty = angleSpeedToDuty(desiredSteerAngle_deg, desiredSpeed)
-    
+    #print leftDuty, rightDuty
 
     # Print status
     if loopCount % 1 == 0:

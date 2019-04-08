@@ -321,14 +321,17 @@ def calculateCommand(image, loopCount, log):
         
         # Here we apply the Kalman filter to make corrections to the potentially
         # noisy or missing measurement of the leader.
-        #print "KALMAN STATE"
-        kalmanFilter.project(dt, lastLeftDuty, lastRightDuty)
+        #kalmanFilter.project(dt, lastLeftDuty, lastRightDuty)
+        kalmanFilter.project(dt, lastLeftDuty, lastRightDuty) # use for motor off
         kalmanFilter.update([crange, measuredTheta], [[rangeSigma, 0],[0, angleSigma]])
-        #print "KALMAN STATE"
-        #kalmanFilter.printState()
-        #print "KALMAN COVARIANCE"
-        #kalmanFilter.printCovariance()
-        #print ""
+        stateStr = ""
+        covStr = ""
+        for val in kalmanFilter.stateVector:
+            stateStr += ", " + "{:6.3f}".format(val)
+        for row in kalmanFilter.covMatrix:
+            for val in row:
+                covStr += ", " + "{:6.3f}".format(val)            
+        log.write("$$$," + "{:5d}".format(loopCount) + ", kalman status" + stateStr + covStr + "\n")
         
 
         # Angle is a linear function of leader X position
