@@ -18,11 +18,10 @@ import kalman
 
 # Parameters
 DEBUG = False
-TARGET_COLOR = "neonyellow"  # "red" "blue" "green" "neonyellow" "neongreen"
+TARGET_COLOR = "green"  # "red" "blue" "green" "neonyellow" "neongreen"
 DO_IMOPEN = False # run the imopen operation
-TARGET_COLOR_SENSITIVITY = 0.1 #0.85 #0.5 (good for blue) # fraction of R+G+B that target pixels must have
-BALL_THRESH = 0.25 # min color value a pixel can have and be declared ball
-BALL_THRESH_REL = 0.7 # pixels must be within this value of peak to be declared ball
+BALL_THRESH = 0.98 #0.3 for yellow # min color value a pixel can have and be declared ball
+BALL_THRESH_REL = 0.9 #0.7 for yellow # pixels must be within this value of peak to be declared ball
 MIN_LEADER_BRIGHTNESS = 0.0 #1.0# relative to image mean
 MIN_LEADER_SIZE = 0.001
 DEG_PER_PCT = 0.49489 # xpct to angle conversion calibration parameter
@@ -155,13 +154,11 @@ def findLeader(image):
 	ballColorFraction = -1.0
 	if TARGET_COLOR == "red":
 	    ballColorFraction = image[:,:,0].astype(float) / np.sum(image.astype(float), axis=2)
-    	    leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY)
 	elif TARGET_COLOR == "green":
-	    ballColorFraction = image[:,:,1].astype(float) / np.sum(image.astype(float), axis=2)
-    	    leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY)
+	    ballColorFraction = image[:,:,1].astype(float) / (1.0 + np.sum(image.astype(float), axis=2) - (200 - image[:,:,1].astype(float))/255)
+    	    print "MAX ballColorFraction: " + str(np.amax(ballColorFraction))
 	elif TARGET_COLOR == "blue":
 	    ballColorFraction = image[:,:,2].astype(float) / np.sum(image.astype(float), axis=2)
-    	    leaderMask = (ballColorFraction > TARGET_COLOR_SENSITIVITY)
 	elif TARGET_COLOR == "neonyellow":
             ballColorFraction = (image[:,:,1].astype(float)+image[:,:,0].astype(float))/(2*255) \
                 - image[:,:,2].astype(float) / (255) \
