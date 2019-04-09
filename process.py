@@ -366,7 +366,7 @@ def process():
     log.process()
     
     plotKalmanSolution(log)
-    return
+    #return
     
     
     # Loop over frames
@@ -434,12 +434,12 @@ def process():
                     "Coasting:     " + str(log.coasting[i])
             coln2 = "         TARGET MASK\n\n\n" + \
                     "  LEFT MOTOR      RIGHT MOTOR\n" + \
-                    "     POWER           POWER\n" + \
-                    "Angle (deg):  " + "%0.2f"% (log.angle[i]) + "\n" \
-                    "Area (%)      " + "%0.2f"% (log.areapct[i]) + "\n" \
-                    "Area (pix):   " + "%0.2f"% (log.areapix[i]) + "\n" \
-                    "Target X:     " + "%0.3f"% (log.tgtCtrXpct[i]/100) + "\n" \
-                    "Target Y:     " + "%0.3f"% (log.tgtCtrYpct[i]/100)
+                    "     POWER           POWER\n"  + \
+                    "Klmn Range (m): " + "%0.3f"% (log.kalmanState[i][0]) + "\n" \
+                    "Klmn Ang (deg): " + "%0.2f"% (log.kalmanState[i][1]) + "\n" \
+                    "Range (m):      " + "%0.3f"% (log.range[i]) + "\n" \
+                    "Angle (deg):    " + "%0.2f"% (log.theta[i]) + "\n" \
+                    "Area (pix):     " + "%0d"% (log.areapix[i])
                                   
             
             # Add text
