@@ -32,7 +32,9 @@ ANGLE_SCALE = 12.0 # multiply detected angle by this amount to determine steerin
 RANGE_SCALE = 3.0 # multiply range offset from DESIRED_RANGE (in meters) by this to get desired duty
 DESIRED_RANGE = 0.3 # Desired range (have zero duty at this range) (meters)
 ANGLE_BOOST = 0.015 # Tack on more throttle if the angle is offcenter to force a turn
-
+THETA_SIGMA = 1.0 # angle uncertainty for a single measurement (absolute degrees)
+RANGE_SIGMA = 0.2 # range uncertainty for a single measurement (fraction of value)
+    
 # HSV Colorspace analysis parameters
 # See http://colorizer.org/ for examples
 DO_HSV = False
@@ -58,8 +60,8 @@ def areapct2Range(areapct):
 # Function to convert from area% to range with upper and lower sigma bounds
 def areapct2RangeBounds(areapct):
     return AREA_2_RANGE / np.sqrt(areapct), \
-           AREA_2_RANGE / np.sqrt(areapct*1.5), \
-           AREA_2_RANGE / np.sqrt(areapct*0.5)
+           AREA_2_RANGE / np.sqrt(areapct*(1.0+RANGE_SIGMA)), \
+           AREA_2_RANGE / np.sqrt(areapct*(1.0-RANGE_SIGMA))
 
 ###########################
 # Adptded from formulae on www.rapidtables.com/convert/color/rgb-to-hsv.html
@@ -288,7 +290,6 @@ def calculateCommand(image, loopCount, log):
     
     # Calculate the angle (theta) and range to the leader
     measuredTheta = xpct2Theta(leaderX*100)
-    thetaSigma = 3.0
     crange, lowrange, hirange = areapct2RangeBounds(100*leaderFractionalArea)
     rangeSigma = (hirange-lowrange)/2      
     log.write("@@@," + "{:5d}".format(loopCount) + ", detected range angle, " + "{:6.3f}".format(crange) + ", " + "{:6.3f}".format(measuredTheta) + "\n")
@@ -305,7 +306,7 @@ def calculateCommand(image, loopCount, log):
     # Update the kalman estimate for the leader position and covariance using
     # the measured location, if we were able to get a location for the leader.
     if leaderFractionalArea >= MIN_LEADER_SIZE:
-        kalmanFilter.update([crange, measuredTheta], [[rangeSigma, 0],[0, thetaSigma]])
+        kalmanFilter.update([crange, measuredTheta], [[rangeSigma, 0],[0, THETA_SIGMA]])
     
     # Write the kalman filter state and covariance to the log for later use.
     stateStr = ""
