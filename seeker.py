@@ -27,7 +27,7 @@ MIN_LEADER_SIZE = 0.001
 DEG_PER_PCT = 0.49489 # xpct to angle conversion calibration parameter
 DEG_AT_ZEROPCT = -29.1764 # xpct to angle conversion calibration parameter (angle at left edge of FOV)
 AREA_2_RANGE = 0.5927 # area to range conversion parameter
-USE_KALMAN = False # use kalman filtered positions for control commands (True) or use exact detected position (False)
+USE_KALMAN = True # use kalman filtered positions for control commands (True) or use exact detected position (False)
 ANGLE_SCALE = 12.0 # multiply detected angle by this amount to determine steering angle
 RANGE_SCALE = 3.0 # multiply range offset from DESIRED_RANGE (in meters) by this to get desired duty
 DESIRED_RANGE = 0.3 # Desired range (have zero duty at this range) (meters)
@@ -258,11 +258,14 @@ def calculateCommand(image, loopCount, log):
     # If the leader is not visible (i.e. if the mask does not have enough
     # pixels above BALL_THRESH), then take a different approach for Kalman
     # vs no Kalman.
-    if (leaderFractionalArea < MIN_LEADER_SIZE) and not USE_KALMAN:
-        # Leader is not visible and we will not be using the Kalman filter to
-        # predict where it went. Command zero motion.
-        log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Commanded to stop.\n")
-        return 0.0, 0.0, leaderMask
+    if (leaderFractionalArea < MIN_LEADER_SIZE):
+    	if not USE_KALMAN:
+            # Leader is not visible and we will not be using the Kalman filter to
+            # predict where it went. Command zero motion.
+            log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Commanded to stop.\n")
+            return 0.0, 0.0, leaderMask
+        else:
+            log.write("^^^," + "{:5d}".format(loopCount) + ", Leader not visible. Coasting with Kalman projection.\n")
     
     # The leader is visible or we are going to predict its location with the 
     # Kalman filter.
@@ -296,8 +299,8 @@ def calculateCommand(image, loopCount, log):
     
     # Project the estimate of the range and angle of the leader forward to the
     # current time using the kalman projection function.
-    #kalmanFilter.project(dt, lastLeftDuty, lastRightDuty)
-    kalmanFilter.project(dt, 0.0, 0.0) # use for motor off
+    kalmanFilter.project(dt, lastLeftDuty, lastRightDuty)
+    #kalmanFilter.project(dt, 0.0, 0.0) # use for motor off
     
     # Update the kalman estimate for the leader position and covariance using
     # the measured location, if we were able to get a location for the leader.
