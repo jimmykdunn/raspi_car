@@ -55,7 +55,7 @@ class kalman_filter:
                         [0, 0, 1,  0], \
                         [0, 0, 0,  1]]
                      
-        applied_dR = -FULL_THROTTLE_SPEED * dt * (lastLeftDuty + lastRightDuty) / \
+        applied_dR = -0.5*FULL_THROTTLE_SPEED * dt * (lastLeftDuty + lastRightDuty) / \
                      np.exp(np.abs(lastLeftDuty - lastRightDuty)*SLOW_FROM_STEER)
         applied_dTheta = (lastRightDuty - lastLeftDuty) * ANGLE_RATE * dt
         appliedControl = [applied_dR, applied_dTheta, 0, 0]
