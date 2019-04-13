@@ -33,8 +33,8 @@ class kalman_filter:
         # but since we have a somewhat stable framerate, we let it be constant.
         self.Q = [[0.0003, 0, 0,    0], \
                   [0,    0.1, 0,    0], \
-                  [0,    0, 0.0003, 0], \
-                  [0,    0, 0,    0.01]]
+                  [0,    0, 0.001, 0], \
+                  [0,    0, 0,    0.05]]
         #self.Q = [[0, 0, 0, 0], \
         #          [0, 0, 0, 0], \
         #          [0, 0, 0, 0], \
@@ -57,6 +57,8 @@ class kalman_filter:
                      
         applied_dR = -0.5*FULL_THROTTLE_SPEED * dt * (lastLeftDuty + lastRightDuty) / \
                      np.exp(np.abs(lastLeftDuty - lastRightDuty)*SLOW_FROM_STEER)
+        if np.amax([lastLeftDuty,lastRightDuty]) < 0.6: # no motion for duty less than 60%
+            applied_dR = 0.0
         applied_dTheta = (lastRightDuty - lastLeftDuty) * ANGLE_RATE * dt
         appliedControl = [applied_dR, applied_dTheta, 0, 0]
         

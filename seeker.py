@@ -18,10 +18,10 @@ import kalman
 
 # Parameters
 DEBUG = False
-TARGET_COLOR = "green"  # "red" "blue" "green" "neonyellow" "neongreen"
+TARGET_COLOR = "neonyellow"  # "red" "blue" "green" "neonyellow" "neongreen"
 DO_IMOPEN = False # run the imopen operation
-BALL_THRESH = 0.98 #0.3 for yellow # min color value a pixel can have and be declared ball
-BALL_THRESH_REL = 0.9 #0.7 for yellow # pixels must be within this value of peak to be declared ball
+BALL_THRESH = 0.2 #.98 green #0.3 for yellow # min color value a pixel can have and be declared ball
+BALL_THRESH_REL = 0.7 #0.9 green #0.7 for yellow # pixels must be within this value of peak to be declared ball
 MIN_LEADER_BRIGHTNESS = 0.0 #1.0# relative to image mean
 MIN_LEADER_SIZE = 0.001
 DEG_PER_PCT = 0.49489 # xpct to angle conversion calibration parameter
@@ -31,11 +31,11 @@ if "neon" in TARGET_COLOR:
 else:
     AREA_2_RANGE = 0.48 # area to range conversion parameter for all other spheres
 USE_KALMAN = True # use kalman filtered positions for control commands (True) or use exact detected position (False)
-ANGLE_SCALE = 12.0 # multiply detected angle by this amount to determine steering angle
+ANGLE_SCALE = 7.0 #12.0 # multiply detected angle by this amount to determine steering angle
 RANGE_SCALE = 3.0 # multiply range offset from DESIRED_RANGE (in meters) by this to get desired duty
 DESIRED_RANGE = 0.3 # Desired range (have zero duty at this range) (meters)
-ANGLE_BOOST = 0.015 # Tack on more throttle if the angle is offcenter to force a turn
-THETA_SIGMA = 1.0 # angle uncertainty for a single measurement (absolute degrees)
+ANGLE_BOOST = 0.08 #0.015 # Tack on more throttle if the angle is offcenter to force a turn
+THETA_SIGMA = 0.5 #1.0 # angle uncertainty for a single measurement (absolute degrees)
 RANGE_SIGMA = 0.2 # range uncertainty for a single measurement (fraction of value)
     
 # HSV Colorspace analysis parameters
@@ -48,7 +48,7 @@ MAX_BALL_SIZE = 0.15 # radius around peak ball pixel to search, as a fraction of
 
 
 # Global variables
-kalmanFilter = kalman.kalman_filter(0,0,0,0,0,0,0,0)
+kalmanFilter = kalman.kalman_filter(1.0,0,0,0,0,0,0,0)
 lastLeftDuty = 0.0
 lastRightDuty = 0.0
 
