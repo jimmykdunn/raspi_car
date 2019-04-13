@@ -26,7 +26,10 @@ MIN_LEADER_BRIGHTNESS = 0.0 #1.0# relative to image mean
 MIN_LEADER_SIZE = 0.001
 DEG_PER_PCT = 0.49489 # xpct to angle conversion calibration parameter
 DEG_AT_ZEROPCT = -29.1764 # xpct to angle conversion calibration parameter (angle at left edge of FOV)
-AREA_2_RANGE = 0.5927 # area to range conversion parameter
+if "neon" in TARGET_COLOR:
+    AREA_2_RANGE = 0.5927 # area to range conversion parameter for neon sphere
+else:
+    AREA_2_RANGE = 0.48 # area to range conversion parameter for all other spheres
 USE_KALMAN = True # use kalman filtered positions for control commands (True) or use exact detected position (False)
 ANGLE_SCALE = 12.0 # multiply detected angle by this amount to determine steering angle
 RANGE_SCALE = 3.0 # multiply range offset from DESIRED_RANGE (in meters) by this to get desired duty
