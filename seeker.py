@@ -33,8 +33,8 @@ else:
 USE_KALMAN = True # use kalman filtered positions for control commands (True) or use exact detected position (False)
 ANGLE_SCALE = 7.0 #12.0 # multiply detected angle by this amount to determine steering angle
 RANGE_SCALE = 3.0 # multiply range offset from DESIRED_RANGE (in meters) by this to get desired duty
-DESIRED_RANGE = 0.3 # Desired range (have zero duty at this range) (meters)
-ANGLE_BOOST = 0.08 #0.015 # Tack on more throttle if the angle is offcenter to force a turn
+DESIRED_RANGE = 0.45 # Desired range (have zero duty at this range) (meters)
+ANGLE_BOOST = 0.02 #0.015 # Tack on more throttle if the angle is offcenter to force a turn
 THETA_SIGMA = 0.5 #1.0 # angle uncertainty for a single measurement (absolute degrees)
 RANGE_SIGMA = 0.2 # range uncertainty for a single measurement (fraction of value)
     
