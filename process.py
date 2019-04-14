@@ -309,13 +309,15 @@ def plotKalmanSolution(log):
     for i, ra in enumerate(zip(log.range,log.theta)):
         rng, ang = ra
         plt.plot(ang,rng)
-        plt.plot([ang], [rng], marker='+', markersize=i/10, color="green")
+        #plt.plot([ang], [rng], marker='+', markersize=i/10, color="green")
+        plt.plot([ang], [rng], marker='+', markersize=10, color="green")
     
     # Plot the kalman range and angle through time
     for i, ra in enumerate(kRA):
         rng, ang = ra
         plt.plot(ang,rng)
-        plt.plot([ang], [rng], marker='o', markersize=i/10, color="red")
+        #plt.plot([ang], [rng], marker='o', markersize=i/10, color="red")
+        plt.plot([ang], [rng], marker='o', markersize=10, color="red")
         
     # Plot the covariance ellipses
     for i, kRACov in enumerate(zip(kRA,log.kalmanCov)):
@@ -337,6 +339,34 @@ def plotKalmanSolution(log):
     plt.xlabel("Angle (deg)")
     plt.ylabel("Range (m)")
     plt.show()
+    
+    # Range and kalman range vs time plot
+    KF_ON = True
+    plt.figure()
+    if KF_ON:
+        plt.plot(log.time,kRAnumpy[:,0])
+    plt.plot(log.time,log.range)
+    plt.xlabel("time (s)")
+    plt.ylabel("Range (m)")
+    if KF_ON:
+        plt.legend(["Kalman Filtered","Raw"])
+    else:
+        plt.legend(["Raw"])
+    plt.show()
+    
+    # Range and kalman angle vs time plot
+    plt.figure()
+    if KF_ON:
+        plt.plot(log.time,kRAnumpy[:,1])
+    plt.plot(log.time,log.theta)
+    plt.xlabel("time (s)")
+    plt.ylabel("angle (deg)")
+    if KF_ON:
+        plt.legend(["Kalman Filtered","Raw"])
+    else:
+        plt.legend(["Raw"])
+    plt.show()
+    
     
     # New figure
     plt.figure()
