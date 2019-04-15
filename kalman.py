@@ -57,9 +57,10 @@ class kalman_filter:
                      
         applied_dR = -0.5*FULL_THROTTLE_SPEED * dt * (lastLeftDuty + lastRightDuty) / \
                      np.exp(np.abs(lastLeftDuty - lastRightDuty)*SLOW_FROM_STEER)
+        applied_dTheta = (lastRightDuty - lastLeftDuty) * ANGLE_RATE * dt
         if np.amax([lastLeftDuty,lastRightDuty]) < 0.6: # no motion for duty less than 60%
             applied_dR = 0.0
-        applied_dTheta = (lastRightDuty - lastLeftDuty) * ANGLE_RATE * dt
+	    applied_dTheta = 0.0
         appliedControl = [applied_dR, applied_dTheta, 0, 0]
         
         self.stateVector = np.dot(updateMatrix, self.stateVector) + appliedControl
