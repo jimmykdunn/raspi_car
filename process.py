@@ -304,68 +304,88 @@ def plotKalmanSolution(log):
     kvRA = [step[2:4] for step in log.kalmanState] # range and angle velocity
     
     # Pull the range-angle part of the covariance matrix at each time
-    plt.figure()
+    rafig = plt.figure()
     # Plot the detected range and angle through time
     for i, ra in enumerate(zip(log.range,log.theta)):
         rng, ang = ra
-        plt.plot(ang,rng)
+        #plt.plot(ang,rng)
         #plt.plot([ang], [rng], marker='+', markersize=i/10, color="green")
-        plt.plot([ang], [rng], marker='+', markersize=10, color="green")
+        plt.plot([ang], [rng], marker='+', markersize=5, color="black")
     
     # Plot the kalman range and angle through time
     for i, ra in enumerate(kRA):
         rng, ang = ra
-        plt.plot(ang,rng)
+        plt.plot(ang,rng,'b')
         #plt.plot([ang], [rng], marker='o', markersize=i/10, color="red")
-        plt.plot([ang], [rng], marker='o', markersize=10, color="red")
+        #plt.plot([ang], [rng], color="blue")
         
     # Plot the covariance ellipses
     for i, kRACov in enumerate(zip(kRA,log.kalmanCov)):
         thiskRA = kRACov[0] # unpack range/angle
         thiskCov = kRACov[1] # unpack covariance
-        rangeSigma = thiskCov[0][0]
-        angleSigma = thiskCov[1][1]
+        rangeSigma = thiskCov[0][0] * 2
+        angleSigma = thiskCov[1][1] * 2
         crossSigma1 = thiskCov[0][1]
         crossSigma2 = thiskCov[1][0]
         ell = Ellipse(xy=thiskRA[::-1], width=angleSigma, height=rangeSigma, angle=crossSigma1)
         ax = plt.gca()
         ax.add_artist(ell)
         ell.set_clip_box(ax.bbox)
-        ell.set_alpha(0.4)
-        ell.set_facecolor([0,1,0])
+        ell.set_alpha(0.3)
+        ell.set_facecolor([0,0,1])
         
     kRAnumpy = np.array(kRA)
     plt.plot(kRAnumpy[:,1],kRAnumpy[:,0])
-    plt.xlabel("Angle (deg)")
-    plt.ylabel("Range (m)")
+    plt.xlabel("ANGLE (DEG)")
+    plt.ylabel("RANGE (m)")
+    plt.xlim([-32,32])
+    plt.ylim([0.3,1.6])
+    plt.legend(["KALMAN FILTERED","RAW"],loc='upper left')
     plt.show()
+    rafig.savefig("rangeangle.png")
+    
+    rangeSigma = []
+    angleSigma = []
+    for cov in log.kalmanCov:
+        rangeSigma.append(cov[0][0]*2)
+        angleSigma.append(cov[1][1]*2)
     
     # Range and kalman range vs time plot
     KF_ON = True
-    plt.figure()
+    rtfig = plt.figure()
     if KF_ON:
-        plt.plot(log.time,kRAnumpy[:,0])
-    plt.plot(log.time,log.range)
-    plt.xlabel("time (s)")
-    plt.ylabel("Range (m)")
+        plt.plot(log.time,kRAnumpy[:,0],'b')
+        plt.errorbar(log.time,kRAnumpy[:,0],yerr=rangeSigma,alpha=0.3)
+    #log.range[np.abs(log.range) < 0.001] = -99 # zero indicates no data, remove it
+    log.range += np.where(np.abs(log.range) < 0.001,99,0)
+    plt.plot(log.time,log.range,'k+')
+    plt.xlabel("TIME (s)")
+    plt.ylabel("RANGE (m)")
     if KF_ON:
-        plt.legend(["Kalman Filtered","Raw"])
+        plt.legend(["KALMAN FILTERED","RAW"],loc='upper left')
     else:
-        plt.legend(["Raw"])
+        plt.legend(["RAW"],loc='upper left')
+    plt.ylim([0.2,1.6])
     plt.show()
+    rtfig.savefig("rangetime.png")
     
-    # Range and kalman angle vs time plot
-    plt.figure()
+    # Angle and kalman angle vs time plot
+    atfig = plt.figure()
     if KF_ON:
-        plt.plot(log.time,kRAnumpy[:,1])
-    plt.plot(log.time,log.theta)
-    plt.xlabel("time (s)")
-    plt.ylabel("angle (deg)")
+        plt.plot(log.time,kRAnumpy[:,1],'b')
+        plt.errorbar(log.time,kRAnumpy[:,1],yerr=angleSigma,alpha=0.3)
+    #log.theta[(np.abs(log.theta) < 0.001).astype(int)] = -99 # zero indicates no data, remove it
+    log.theta += np.where(np.abs(log.theta) < 0.001,99,0)
+    plt.plot(log.time,log.theta,'k+')
+    plt.xlabel("TIME (s)")
+    plt.ylabel("ANGLE (DEG)")
     if KF_ON:
-        plt.legend(["Kalman Filtered","Raw"])
+        plt.legend(["KALMAN FILTERED","RAW"],loc='upper left')
     else:
-        plt.legend(["Raw"])
+        plt.legend(["RAW"],loc='upper left')
+    plt.ylim([-32,32])
     plt.show()
+    atfig.savefig("angletime.png")
     
     
     # New figure
@@ -491,7 +511,8 @@ def process():
             break
 
     # Save all images as an animated GIF
-    dtframe = np.mean(np.diff(log.time)) * 1000
+    #dtframe = np.mean(np.diff(log.time)) * 1000
+    dtframe = 100
     startTime = log.startTime.strftime("%Y%m%d_%H%M%S")
     video[0].save(OUT_PATH+"_"+startTime+".gif", 
          save_all=True, append_images=video[1:], duration=dtframe, loop=0)
